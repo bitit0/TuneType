@@ -367,10 +367,75 @@ is set by the workflow and read by Vite, and the router reads the same value bac
 `import.meta.env.BASE_URL`, so the two cannot disagree. `404.html` is a copy of `index.html`, which
 is how a deep link like `/setlists/hard` boots the app instead of GitHub's not-found page.
 
-**To get the full app, the server has to live somewhere that runs Node** — Render, Railway and Fly
-all have a free tier that fits it. Deploy `server/`, then point the client at it by setting
-`VITE_API_BASE` to its URL at build time and adding the Pages origin to `ALLOWED_ORIGINS` on the
-server. Nothing else changes; the seam is already there.
+### The server, on Cloud Run
+
+The API runs as a container on Cloud Run, and it is there rather than anywhere else for one
+reason: **the service-account key stops existing.** Everywhere else you would mount
+`serviceAccountKey.json` as a secret file or paste it into an environment variable. On Google's own
+infrastructure the container has an identity of its own, the Admin SDK finds it through Application
+Default Credentials, and there is no private key to commit, leak or rotate. `server/src/firebase.ts`
+takes that path when `K_SERVICE` is set and the explicit key path is not.
+
+`.github/workflows/deploy-server.yml` deploys on any push that touches `server/`, `shared/` or the
+`Dockerfile`. It authenticates with Workload Identity Federation, so there is no key in GitHub
+either — the runner mints a short-lived token and Google trusts it.
+
+**One-time setup.** With the `gcloud` CLI installed and `gcloud auth login` done:
+
+```bash
+PROJECT=your-gcp-project-id      # the same project Firestore is in
+REPO=bitit0/TuneType
+
+gcloud config set project "$PROJECT"
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com   iamcredentials.googleapis.com secretmanager.googleapis.com
+
+# The YouTube key, as the only real secret.
+printf '%s' "YOUR_YOUTUBE_API_KEY" | gcloud secrets create youtube-api-key --data-file=-
+
+# The identity the service runs as, and what it may touch.
+gcloud iam service-accounts create tunetype-api
+SA="tunetype-api@$PROJECT.iam.gserviceaccount.com"
+gcloud projects add-iam-policy-binding "$PROJECT" --member="serviceAccount:$SA"   --role=roles/datastore.user
+gcloud secrets add-iam-policy-binding youtube-api-key --member="serviceAccount:$SA"   --role=roles/secretmanager.secretAccessor
+
+# The identity GitHub deploys as, and the federation that lets it in without a key.
+gcloud iam service-accounts create tunetype-deployer
+DEPLOYER="tunetype-deployer@$PROJECT.iam.gserviceaccount.com"
+for ROLE in run.admin cloudbuild.builds.editor storage.admin artifactregistry.admin             iam.serviceAccountUser; do
+  gcloud projects add-iam-policy-binding "$PROJECT"     --member="serviceAccount:$DEPLOYER" --role="roles/$ROLE"
+done
+
+gcloud iam workload-identity-pools create github --location=global
+gcloud iam workload-identity-pools providers create-oidc github   --location=global --workload-identity-pool=github   --issuer-uri=https://token.actions.githubusercontent.com   --attribute-mapping=google.subject=assertion.sub,attribute.repository=assertion.repository   --attribute-condition="assertion.repository=='$REPO'"
+
+PROJECT_NUMBER=$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')
+gcloud iam service-accounts add-iam-policy-binding "$DEPLOYER"   --role=roles/iam.workloadIdentityUser   --member="principalSet://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/github/attribute.repository/$REPO"
+
+echo "projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/github/providers/github"
+```
+
+The `--attribute-condition` is the part worth reading twice. Without it the pool would trust a token
+from *any* repository on GitHub, which is an open door to your project.
+
+**Then set these repository variables** under Settings → Secrets and variables → Actions →
+Variables:
+
+| Variable | Value |
+|---|---|
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | the `projects/…/providers/github` line printed above |
+| `GCP_DEPLOYER_SERVICE_ACCOUNT` | `tunetype-deployer@<project>.iam.gserviceaccount.com` |
+| `ALLOWED_ORIGINS` | `https://bitit0.github.io` |
+| `ADMIN_EMAILS` | the address that may curate setlists |
+| `API_BASE` | the Cloud Run URL, after the first deploy |
+
+`API_BASE` is deliberately last. The service has no URL until it has deployed once, and the client
+copes with it being unset — nothing answers at `/api`, so the front page searches LRCLIB instead.
+Set it and push again to join the two halves together.
+
+**Cloud Run scales to zero, and that is fine for the quota and awkward for the rate limiter.** The
+daily search budget persists to Firestore, so a cold start cannot lose count. The per-address rate
+limit is in memory, so a cold start resets it — if the service sleeps often enough for that to
+matter, the limiter belongs in Firestore too.
 
 ## Tests
 

@@ -37,8 +37,34 @@ export function getFirebaseAdmin(): admin.app.App | null {
   attempted = true;
 
   const configured = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+
+  /*
+   * No key file, but running on Google's own infrastructure.
+   *
+   * Cloud Run gives the container a service-account identity of its own and the Admin SDK finds it
+   * through Application Default Credentials, so there is nothing to download, nothing to mount and
+   * nothing to rotate. That is the better arrangement by some distance: a private key that does not
+   * exist cannot be committed, leaked or left in a backup.
+   *
+   * `K_SERVICE` is set by Cloud Run itself and is the signal it has an identity to offer. Guessing
+   * instead — calling initializeApp() and hoping — fails later and less clearly, somewhere inside
+   * the first Firestore read.
+   */
+  if (!configured && process.env.K_SERVICE) {
+    try {
+      app = admin.initializeApp();
+      console.log(`[auth] Firebase Admin ready (ambient credentials on ${process.env.K_SERVICE}).`);
+    } catch (error) {
+      unavailableReason = 'Ambient Google credentials were not usable.';
+      console.error(`[auth] ${unavailableReason}`, error);
+      app = null;
+    }
+    return app;
+  }
+
   if (!configured) {
-    unavailableReason = 'GOOGLE_APPLICATION_CREDENTIALS is not set in .env.';
+    unavailableReason =
+      'GOOGLE_APPLICATION_CREDENTIALS is not set, and no ambient Google credentials are available.';
     console.warn(`[auth] ${unavailableReason} Token verification is disabled; guests can still play.`);
     return null;
   }

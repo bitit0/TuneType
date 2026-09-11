@@ -1,0 +1,19 @@
+# Everything the image does not need. Keeping node_modules out matters most: copying a host-built
+# one over the image's would mix platforms and can break native modules outright.
+node_modules
+**/node_modules
+client/dist
+.git
+.github
+docs
+e2e
+scripts
+test-results
+playwright-report
+*.tsbuildinfo
+
+# Never near the image. The whole point of running on Cloud Run is that the key does not travel.
+.env
+.env.*
+serviceAccountKey.json
+*-service-account*.json
