@@ -3,6 +3,7 @@ import { Box, Container, Flex, Heading } from '@chakra-ui/react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthButton } from '@/components/Auth/AuthButton';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { SiteFooter } from '@/components/SiteFooter';
 import { VideoSearchPage } from '@/routes/VideoSearchPage';
 import { SearchPage } from '@/routes/SearchPage';
 import { SelectVideoPage } from '@/routes/SelectVideoPage';
@@ -11,6 +12,8 @@ import { SetlistTierPage } from '@/routes/SetlistTierPage';
 import { PlayPage } from '@/routes/PlayPage';
 import { ResultsPage } from '@/routes/ResultsPage';
 import { ProfilePage } from '@/routes/ProfilePage';
+import { PrivacyPage } from '@/routes/PrivacyPage';
+import { TermsPage } from '@/routes/TermsPage';
 import { useAuthStore } from '@/store/authStore';
 import { useAccountStore } from '@/store/accountStore';
 
@@ -115,11 +118,16 @@ export default function App() {
               <Route path="/play" element={<PlayPage />} />
               <Route path="/results" element={<ResultsPage />} />
               <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/terms" element={<TermsPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </ErrorBoundary>
         </Container>
       </Box>
+
+      {/* Outside <main>, so it is not part of the page's content for a screen reader. */}
+      <SiteFooter />
     </Flex>
   );
 }

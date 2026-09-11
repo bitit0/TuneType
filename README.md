@@ -78,28 +78,6 @@ hard they are to type.
 
 Forty are seeded. `npm run seed:setlists` re-applies them, and it is idempotent.
 
-## Deploying
-
-Vercel hosts both halves on one origin — the client as static files, the API as one serverless
-function via `api/index.ts`. Connect the repo and set these environment variables:
-
-| Variable | Notes |
-|---|---|
-| `FIREBASE_SERVICE_ACCOUNT` | The service-account JSON, inline. Accounts and setlists need it. |
-| `YOUTUBE_API_KEY` | Enables video search. Without it, `/songs` is the way in. |
-| `ADMIN_EMAILS` | Who may curate setlists. |
-| `VITE_FIREBASE_*` | Public identifiers from the Firebase console; enables sign-in. |
-
-`ALLOWED_ORIGINS` is unnecessary there — same origin means no CORS.
-
-**The rate limiter does not survive serverless.** It uses an in-memory store, and instances are
-ephemeral. The daily search budget is Firestore-backed and does survive, so the quota stays
-protected; what is lost is burst protection.
-
-A `Dockerfile` and `server/src/firebase.ts`'s ambient-credential path are kept for Cloud Run, which
-is the better home if this ever takes real traffic — there the container has its own identity and
-the service-account key stops existing.
-
 ## Tests
 
 ```bash
