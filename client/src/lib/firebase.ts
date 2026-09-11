@@ -1,5 +1,4 @@
-import { initializeApp, type FirebaseApp } from 'firebase/app';
-import { getAuth, type Auth } from 'firebase/auth';
+import type { Auth } from 'firebase/auth';
 
 /**
  * Firebase client init, deliberately optional.
@@ -10,6 +9,12 @@ import { getAuth, type Auth } from 'firebase/auth';
  *
  * These values are public identifiers, not secrets. The service-account key is the secret half and
  * lives only on the server.
+ *
+ * The SDK is loaded on demand rather than imported at the top of this file. Statically importing
+ * it put the whole of `firebase/app` and `firebase/auth` in the entry bundle — the largest single
+ * thing the app downloaded — on behalf of a feature that unlocks nothing and that a guest never
+ * touches. `isAuthConfigured` reads environment variables only, so the common path never fetches
+ * the SDK at all. The `import type` above is erased at build time and costs nothing.
  */
 
 const config = {
@@ -19,18 +24,28 @@ const config = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-let app: FirebaseApp | null = null;
-let auth: Auth | null = null;
-
 export function isAuthConfigured(): boolean {
   return Boolean(config.apiKey && config.authDomain && config.projectId);
 }
 
-export function getFirebaseAuth(): Auth | null {
-  if (!isAuthConfigured()) return null;
-  if (!auth) {
-    app = initializeApp(config);
-    auth = getAuth(app);
-  }
-  return auth;
+/**
+ * The initialized SDK, or null when this build has no Firebase project.
+ *
+ * The promise is cached rather than the resolved value, so concurrent callers during startup share
+ * one fetch and one `initializeApp` instead of racing to create several.
+ */
+let authPromise: Promise<Auth> | null = null;
+
+export function getFirebaseAuth(): Promise<Auth | null> {
+  if (!isAuthConfigured()) return Promise.resolve(null);
+
+  authPromise ??= (async () => {
+    const [{ initializeApp }, { getAuth }] = await Promise.all([
+      import('firebase/app'),
+      import('firebase/auth'),
+    ]);
+    return getAuth(initializeApp(config));
+  })();
+
+  return authPromise;
 }

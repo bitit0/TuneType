@@ -1,14 +1,16 @@
 import { create } from 'zustand';
-import {
-  GoogleAuthProvider,
-  createUserWithEmailAndPassword,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signInWithPopup,
-  signOut,
-  type User,
-} from 'firebase/auth';
+import type { User } from 'firebase/auth';
 import { getFirebaseAuth, isAuthConfigured } from '@/lib/firebase';
+
+/**
+ * The auth SDK, fetched the first time it is needed.
+ *
+ * Every call site imports it this way rather than at the top of the file, because a static import
+ * here would pull `firebase/auth` into the entry bundle — this store is reachable from the header,
+ * which every page renders. Vite resolves all of these to the one chunk that `getFirebaseAuth`
+ * already fetches, so after the first sign-in action it is a cache hit.
+ */
+const authSdk = () => import('firebase/auth');
 
 interface AuthState {
   user: User | null;
@@ -93,17 +95,32 @@ export const useAuthStore = create<AuthState>((set) => ({
   initializing: isAuthConfigured(),
   error: null,
 
+  /*
+   * Kept synchronous at the call site: the header calls this on mount and has nothing to await.
+   * `initializing` now also covers fetching the SDK, so it stays true a little longer than it used
+   * to — which is the point, since the alternative was paying that download on every page load.
+   */
   init: () => {
-    const auth = getFirebaseAuth();
-    if (!auth) {
+    if (!isAuthConfigured()) {
       set({ initializing: false });
       return;
     }
-    onAuthStateChanged(auth, (user) => set({ user, initializing: false }));
+
+    void (async () => {
+      const [auth, { onAuthStateChanged }] = await Promise.all([getFirebaseAuth(), authSdk()]);
+      if (!auth) {
+        set({ initializing: false });
+        return;
+      }
+      onAuthStateChanged(auth, (user) => set({ user, initializing: false }));
+    })();
   },
 
   signInWithGoogle: async () => {
-    const auth = getFirebaseAuth();
+    const [auth, { GoogleAuthProvider, signInWithPopup }] = await Promise.all([
+      getFirebaseAuth(),
+      authSdk(),
+    ]);
     if (!auth) return;
     try {
       await signInWithPopup(auth, new GoogleAuthProvider());
@@ -116,7 +133,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   signInWithEmail: async (email, password) => {
-    const auth = getFirebaseAuth();
+    const [auth, { signInWithEmailAndPassword }] = await Promise.all([
+      getFirebaseAuth(),
+      authSdk(),
+    ]);
     if (!auth) return;
     try {
       await signInWithEmailAndPassword(auth, email, password);
@@ -127,7 +147,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   registerWithEmail: async (email, password) => {
-    const auth = getFirebaseAuth();
+    const [auth, { createUserWithEmailAndPassword }] = await Promise.all([
+      getFirebaseAuth(),
+      authSdk(),
+    ]);
     if (!auth) return;
     try {
       await createUserWithEmailAndPassword(auth, email, password);
@@ -138,14 +161,16 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logOut: async () => {
-    const auth = getFirebaseAuth();
+    const [auth, { signOut }] = await Promise.all([getFirebaseAuth(), authSdk()]);
     if (auth) await signOut(auth);
   },
 
   clearError: () => set({ error: null }),
 
   getIdToken: async () => {
-    const auth = getFirebaseAuth();
+    // No dynamic import needed: getIdToken lives on the user object, not the module. Anyone signed
+    // in has already been through `init`, so this resolves from the cached promise.
+    const auth = await getFirebaseAuth();
     return auth?.currentUser ? auth.currentUser.getIdToken() : null;
   },
 }));
