@@ -62,9 +62,34 @@ export function getFirebaseAdmin(): admin.app.App | null {
     return app;
   }
 
+  /*
+   * The key as a value rather than a path.
+   *
+   * Hosts that are not Google have no identity to offer and no filesystem worth writing a key to,
+   * so they hand it over as an environment variable instead. Reading it here is what lets this run
+   * on one of them without a file ever existing on disk.
+   *
+   * Checked before the path, so a deployment that sets both cannot be quietly using the wrong one.
+   */
+  const inline = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (!configured && inline) {
+    try {
+      const serviceAccount = JSON.parse(inline);
+      app = admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+      console.log(`[auth] Firebase Admin ready (project ${serviceAccount.project_id}, from env).`);
+    } catch (error) {
+      // Almost always the same mistake: the JSON was pasted with its newlines mangled, so the
+      // private key no longer parses. Say which variable, since the stack trace will not.
+      unavailableReason = 'FIREBASE_SERVICE_ACCOUNT is set but is not valid service-account JSON.';
+      console.error(`[auth] ${unavailableReason}`, error);
+      app = null;
+    }
+    return app;
+  }
+
   if (!configured) {
     unavailableReason =
-      'GOOGLE_APPLICATION_CREDENTIALS is not set, and no ambient Google credentials are available.';
+      'No Google credentials: set GOOGLE_APPLICATION_CREDENTIALS or FIREBASE_SERVICE_ACCOUNT.';
     console.warn(`[auth] ${unavailableReason} Token verification is disabled; guests can still play.`);
     return null;
   }
