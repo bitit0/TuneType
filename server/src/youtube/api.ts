@@ -1,8 +1,14 @@
-import type { VideoCandidate, VideoSearchResponse } from '@shared/types';
+import type { VideoCandidate, VideoQueryResponse, VideoSearchResponse } from '@shared/types';
 import { readCache, writeCache } from './cache.js';
 import { getConsensusMap } from '../offsets/store.js';
 import { canSearch, quotaStatus, recordSearch } from './quota.js';
-import { parseIsoDuration, rankCandidates, searchCacheKey, type TrackForRanking } from './rank.js';
+import {
+  normalizeText,
+  parseIsoDuration,
+  rankCandidates,
+  searchCacheKey,
+  type TrackForRanking,
+} from './rank.js';
 
 /**
  * The YouTube Data API v3 client.
@@ -113,23 +119,22 @@ async function call<T>(path: string, params: Record<string, string>): Promise<T>
 }
 
 /**
- * Finds candidate videos for a track.
+ * Runs one search and fills in the durations.
  *
  * `videoEmbeddable` and `videoSyndicated` are not optional niceties. A video the owner has blocked
  * from embedding loads as a black rectangle in the IFrame player, and the failure looks like our
  * bug rather than the uploader's choice. Filtering at the source costs nothing and removes a
  * category of result that could never have been played.
  */
-async function searchYouTube(track: TrackForRanking): Promise<VideoCandidate[]> {
+async function searchYouTube(query: string): Promise<VideoCandidate[]> {
   // Deliberately not filtered to `videoCategoryId: 10` (Music). Topic uploads are categorised as
-  // Music reliably, but the independent lyric-video channels — tier three, and often the only
-  // usable upload for a track — routinely file under Entertainment or People & Blogs. Narrowing
-  // the one search we are allowed to make would hide those, and the query already carries the
-  // artist name, which is what actually keeps unrelated results out.
+  // Music reliably, but the independent lyric-video channels — often the only usable upload for a
+  // track — routinely file under Entertainment or People & Blogs. Narrowing the one search we are
+  // allowed to make would hide those.
   const found = await call<{ items?: SearchItem[] }>('search', {
     part: 'snippet',
     type: 'video',
-    q: `${track.artist} ${track.title}`,
+    q: query,
     maxResults: String(MAX_RESULTS),
     videoEmbeddable: 'true',
     videoSyndicated: 'true',
@@ -165,8 +170,10 @@ async function searchYouTube(track: TrackForRanking): Promise<VideoCandidate[]> 
     });
   }
 
-  // `videos.list` does not preserve the order ids were given in, but ranking replaces it anyway.
-  return candidates;
+  // `videos.list` answers in its own order, so put the results back into the one `search.list`
+  // gave them in. A free-text query has no track to rank against and is served in exactly this
+  // order, which is YouTube's relevance — the only signal available before a track is known.
+  return candidates.sort((a, b) => ids.indexOf(a.videoId) - ids.indexOf(b.videoId));
 }
 
 /**
@@ -230,7 +237,7 @@ export async function findVideos(
     );
   }
 
-  const candidates = await searchYouTube(track);
+  const candidates = await searchYouTube(`${track.artist} ${track.title}`);
 
   // An empty result is cached too. "There is nothing on YouTube for this" is a real answer, and
   // re-asking costs the same 100 units as asking the first time.
@@ -241,4 +248,50 @@ export async function findVideos(
     cached: false,
     quota: await quotaStatus(),
   };
+}
+
+
+/**
+ * The cache key for a free-text query.
+ *
+ * Two pipes rather than one, which is what keeps this namespace from ever colliding with
+ * `searchCacheKey`: a track key is exactly `artist|title` and neither half can contain a pipe once
+ * normalized, so no track can produce a key with two.
+ *
+ * Normalizing the query is the only defence the quota has here. A track key is built from a
+ * canonical LRCLIB record, so every spelling of a recording lands on one slot; a query is whatever
+ * someone typed, and case, punctuation and accents would otherwise each buy their own search.
+ */
+function queryCacheKey(query: string): string {
+  return `q||${normalizeText(query)}`;
+}
+
+/**
+ * Videos for a free-text query — the video-first entry into a song.
+ *
+ * No `cachedOnly` mode, unlike `findVideos`. That mode exists because *opening a screen* should
+ * not spend quota, and there is no equivalent here: a query only arrives because someone typed it
+ * and pressed search, which is the act of asking.
+ */
+export async function findVideosByQuery(query: string): Promise<VideoQueryResponse> {
+  const key = queryCacheKey(query);
+
+  const cached = await readCache(key);
+  if (cached) return { videos: cached, cached: true, quota: await quotaStatus() };
+
+  if (!isYouTubeConfigured()) {
+    throw new YouTubeUnavailableError('YouTube search is not configured on this server.');
+  }
+
+  if (!(await canSearch())) {
+    const { used, budget } = await quotaStatus();
+    throw new QuotaExceededError(
+      `Today's YouTube search budget is spent (${used} of ${budget}). It resets at midnight Pacific — paste a video link in the meantime.`,
+    );
+  }
+
+  const videos = await searchYouTube(query);
+  await writeCache(key, videos);
+
+  return { videos, cached: false, quota: await quotaStatus() };
 }

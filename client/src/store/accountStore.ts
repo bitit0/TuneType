@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type {
   AccountOverview,
+  Keystroke,
   PlayableTrack,
   ProfilePatch,
   RunSummary,
@@ -37,6 +38,7 @@ interface AccountState {
     videoId: string,
     offsetMs: number,
     summary: RunSummary,
+    keystrokes: Keystroke[],
   ) => Promise<void>;
   /** Applies a partial profile update. Returns false and sets `error` when it fails. */
   updateProfile: (patch: ProfilePatch) => Promise<boolean>;
@@ -76,7 +78,7 @@ export const useAccountStore = create<AccountState>((set, get) => ({
     await get().load();
   },
 
-  saveRun: async (track, videoId, offsetMs, summary) => {
+  saveRun: async (track, videoId, offsetMs, summary, keystrokes) => {
     // Nothing typed is nothing worth a document — and a zero-length run would drag a lifetime
     // average around for no reason.
     if (summary.linesAttempted === 0) {
@@ -87,7 +89,7 @@ export const useAccountStore = create<AccountState>((set, get) => ({
     set({ saveState: 'saving', saveError: null });
     try {
       const { run, stats } = await api.postRun(
-        api.toRunSubmission(track, videoId, offsetMs, summary),
+        api.toRunSubmission(track, videoId, offsetMs, summary, keystrokes),
       );
 
       // Patch the cached overview rather than refetching: the profile screen should already be

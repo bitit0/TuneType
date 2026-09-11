@@ -20,13 +20,19 @@ quietly when unconfigured. Copy `.env.example` to `.env` only when you want them
 
 ## How a run works
 
-1. **Search** a song by title. Results come from LRCLIB; entries without line-synced lyrics are
-   filtered out, since they can't be played.
-2. **Pick a video.** With a YouTube API key configured, the server searches and ranks candidates —
-   `Artist - Topic` uploads first, official music videos last. Without one, paste a link yourself;
-   that form is always there regardless.
+1. **Search for the video.** Results come from YouTube in its own relevance order, filtered to
+   what can actually be embedded.
+2. **Pick one, and the lyrics follow.** Its title and length are matched against LRCLIB — title
+   decides which song, length decides which cut of it. Getting this wrong is possible, and the way
+   out is the song-first search at `/songs`.
 3. **Play.** Press play on the video and start typing. If the lyrics run ahead or behind, nudge
    them with <kbd>←</kbd> / <kbd>→</kbd> (100ms per press).
+
+**The song-first flow still exists at `/songs`**, and is the whole front door on a server with no
+`YOUTUBE_API_KEY`: search LRCLIB by title, then pick a video for the track you chose. That
+direction is ranked — `Artist - Topic` uploads first, official music videos last — because a known
+track is something a video can be scored against. A free-text video search has no track to score
+against yet, so it is served in YouTube's order.
 
 ## What's built
 

@@ -124,3 +124,178 @@ body {
     animation: none;
   }
 }
+
+/* --- Home hero ---------------------------------------------------------------------------
+ *
+ * All of this is CSS rather than JS for the same reason the lyric display is: these animations
+ * run continuously, and anything driving them from React would re-render the page sixty times a
+ * second to move a gradient. Every one of them is disabled under `prefers-reduced-motion` at the
+ * bottom of this file.
+ */
+
+/*
+ * Drifting colour behind the page.
+ *
+ * Fixed rather than absolute so it is not clipped by the layout container, and painted under the
+ * content by z-index. The body's own background stays opaque beneath it, so this reads as a tint
+ * on the dark ground rather than as a light source of its own.
+ */
+.tt-aurora {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.tt-aurora span {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  /* A heavy blur is what turns three circles into a wash. Without it they read as three circles. */
+  filter: blur(90px);
+  opacity: 0.4;
+  will-change: transform;
+}
+
+.tt-aurora span:nth-child(1) {
+  width: 46vw;
+  height: 46vw;
+  top: -14vw;
+  left: -8vw;
+  background: #6c8cff;
+  animation: tt-drift-a 24s ease-in-out infinite alternate;
+}
+
+.tt-aurora span:nth-child(2) {
+  width: 38vw;
+  height: 38vw;
+  top: -6vw;
+  right: -10vw;
+  background: #a855f7;
+  opacity: 0.3;
+  animation: tt-drift-b 31s ease-in-out infinite alternate;
+}
+
+.tt-aurora span:nth-child(3) {
+  width: 34vw;
+  height: 34vw;
+  top: 26vw;
+  left: 38vw;
+  background: #22d3ee;
+  opacity: 0.16;
+  animation: tt-drift-c 27s ease-in-out infinite alternate;
+}
+
+@keyframes tt-drift-a {
+  to {
+    transform: translate3d(10vw, 6vw, 0) scale(1.15);
+  }
+}
+
+@keyframes tt-drift-b {
+  to {
+    transform: translate3d(-8vw, 10vw, 0) scale(0.9);
+  }
+}
+
+@keyframes tt-drift-c {
+  to {
+    transform: translate3d(-12vw, -6vw, 0) scale(1.2);
+  }
+}
+
+/* The equalizer. Heights are animated rather than transforms so the bars grow from the baseline. */
+.tt-eq {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 30px;
+}
+
+.tt-eq i {
+  width: 3px;
+  height: 20%;
+  border-radius: 2px;
+  background: linear-gradient(to top, var(--tt-accent), #a855f7);
+  animation: tt-eq-bounce 1.2s ease-in-out infinite;
+}
+
+@keyframes tt-eq-bounce {
+  0%,
+  100% {
+    height: 18%;
+    opacity: 0.55;
+  }
+  50% {
+    height: 100%;
+    opacity: 1;
+  }
+}
+
+/*
+ * The glow behind the search field.
+ *
+ * On a pseudo-element under the input rather than a box-shadow on it, because it has to bleed
+ * outward and blur; a shadow that large reads as a halo with a hard edge. It brightens on
+ * focus-within, so tabbing into the field lights it up the same way clicking does.
+ */
+.tt-search-glow {
+  position: relative;
+  border-radius: 14px;
+}
+
+.tt-search-glow::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  background: linear-gradient(120deg, var(--tt-accent), #a855f7, #22d3ee);
+  filter: blur(14px);
+  opacity: 0.35;
+  transition: opacity 250ms ease;
+  z-index: -1;
+}
+
+.tt-search-glow:focus-within::before {
+  opacity: 0.75;
+}
+
+/* The wordmark types itself in, one step per character, then holds. */
+.tt-typed {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  vertical-align: bottom;
+  animation: tt-type 1.1s steps(8, end) 1 both;
+}
+
+/*
+ * `max-width`, not `width`.
+ *
+ * An inline-block with `width: 100%` resolves against the parent block, not its own text, which
+ * stretched the wordmark to the full heading and pushed the caret onto a second line. Animating
+ * max-width leaves the box shrink-to-fit and clips it instead.
+ */
+@keyframes tt-type {
+  from {
+    max-width: 0;
+  }
+  to {
+    max-width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tt-aurora span,
+  .tt-eq i,
+  .tt-typed {
+    animation: none;
+  }
+
+  /* Without the animation the typed wordmark would stay collapsed to zero width. */
+  .tt-typed {
+    max-width: none;
+  }
+}
+

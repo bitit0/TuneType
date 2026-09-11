@@ -124,6 +124,22 @@ export interface VideoSearchResponse {
   quota: QuotaStatus;
 }
 
+/**
+ * A free-text video search, as the server returns it.
+ *
+ * Unranked on purpose. The ranking in `youtube/rank.ts` scores a video *against a known track* —
+ * its duration rules and its karaoke/live/remix disqualifications all compare against the track's
+ * own title and length. Searching for a video before any track is known leaves nothing to compare
+ * to, so these come back in YouTube's own relevance order, which is what the user would have got
+ * typing the same words into YouTube.
+ */
+export interface VideoQueryResponse {
+  videos: VideoCandidate[];
+  /** True when this answer came from the store and cost no quota. */
+  cached: boolean;
+  quota: QuotaStatus;
+}
+
 export interface QuotaStatus {
   /** `search.list` calls made today, against the configured daily budget. */
   used: number;
@@ -258,6 +274,15 @@ export interface Keystroke {
   atMs: number;
 }
 
+/**
+ * Miss counts per key, keyed by the lowercased character that was expected.
+ *
+ * Deliberately orderless. This is the one thing derived from a player's typing that is allowed to
+ * be persisted, and it is allowed precisely because a histogram of how often each letter came up
+ * carries no sequence — the words cannot be recovered from it. See `RunSubmission`.
+ */
+export type KeyTally = Record<string, { attempts: number; misses: number }>;
+
 export interface LineResult {
   lineIndex: number;
   targetLength: number;
@@ -369,9 +394,18 @@ export interface RunSubmission {
    * which nothing about the words can be recovered. Same standing as `correctChars`.
    */
   requiredWpm: number;
+  /**
+   * Which keys were missed during this run.
+   *
+   * The one exception to the rule above, and it survives it for a specific reason: a tally has no
+   * order, so it cannot reconstruct anything. It is also never stored against this run — the
+   * server folds it into the account's lifetime totals and drops it, so no document ever holds a
+   * letter histogram next to the track it came from. `SavedRun` omits it for that reason.
+   */
+  keyTally: KeyTally;
 }
 
-export interface SavedRun extends RunSubmission {
+export interface SavedRun extends Omit<RunSubmission, 'keyTally'> {
   id: string;
   playedAt: number;
   /** Derived on the server from the counts above, never sent by the client. */
@@ -394,6 +428,13 @@ export interface StatAccumulators {
   linesCompleted: number;
   /** Summed typing time across every run. The lifetime WPM denominator. */
   totalTypingMs: number;
+  /**
+   * Lifetime miss counts per key, summed across every run and every song.
+   *
+   * Lifetime-only by design. Spread over an account's whole history it describes how someone
+   * types; kept per track it would describe the track. Only the first of those is worth storing.
+   */
+  keyTally: KeyTally;
 }
 
 export interface AccountStats extends StatAccumulators {

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Box, Container, Flex, Heading } from '@chakra-ui/react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthButton } from '@/components/Auth/AuthButton';
+import { VideoSearchPage } from '@/routes/VideoSearchPage';
 import { SearchPage } from '@/routes/SearchPage';
 import { SelectVideoPage } from '@/routes/SelectVideoPage';
 import { SetlistsPage } from '@/routes/SetlistsPage';
@@ -66,7 +67,10 @@ export default function App() {
       <Box as="main" flex="1">
         <Container maxW="5xl" py={8}>
           <Routes>
-            <Route path="/" element={<SearchPage />} />
+            <Route path="/" element={<VideoSearchPage />} />
+            {/* The lyrics-first flow: the fallback when a video cannot be matched, and the only
+                way in on a server with no YouTube API key. */}
+            <Route path="/songs" element={<SearchPage />} />
             <Route path="/video" element={<SelectVideoPage />} />
             <Route path="/setlists" element={<SetlistsPage />} />
             <Route path="/play" element={<PlayPage />} />

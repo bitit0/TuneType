@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Badge,
   Box,
@@ -19,6 +19,7 @@ import { isAuthConfigured } from '@/lib/firebase';
 import { AVATAR_COLOR_KEYS, AVATAR_PALETTE, avatarSrc } from '@/lib/avatar';
 import { ImageError, fileToAvatarDataUri } from '@/lib/image/downscale';
 import { Avatar } from '@/components/Auth/Avatar';
+import { rankKeyErrors } from '@/lib/scoring/keys';
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -130,6 +131,12 @@ export function ProfilePage() {
   const load = useAccountStore((s) => s.load);
   const updateProfile = useAccountStore((s) => s.updateProfile);
   const deleteAccount = useAccountStore((s) => s.deleteAccount);
+
+  // Ranked by the same rule the results screen uses, so "worst" means one thing in both places.
+  const worstKeys = useMemo(
+    () => rankKeyErrors(overview?.stats.keyTally ?? {}),
+    [overview?.stats.keyTally],
+  );
 
   const [nameDraft, setNameDraft] = useState('');
   const [editingName, setEditingName] = useState(false);
@@ -254,6 +261,47 @@ export function ProfilePage() {
             />
           </Grid>
         </>
+      )}
+
+      {/*
+        Lifetime rather than per-run, and summed across every song. One run says which keys went
+        badly that night; a history says which ones actually need practice.
+      */}
+      {worstKeys.length > 0 && (
+        <Box>
+          <Heading size="sm" mb={1}>
+            Keys you miss
+          </Heading>
+          <Text fontSize="xs" color="var(--tt-muted)" mb={3}>
+            Misses out of times the key came up, across every run
+          </Text>
+          <Flex gap={2} wrap="wrap">
+            {worstKeys.slice(0, 12).map((key) => (
+              <Flex
+                key={key.key}
+                direction="column"
+                align="center"
+                minW="64px"
+                px={3}
+                py={2}
+                borderWidth="1px"
+                borderColor="var(--tt-border)"
+                borderRadius="md"
+                bg="var(--tt-surface)"
+              >
+                <Text fontSize="xl" fontWeight="bold" lineHeight="1.2">
+                  {key.key === ' ' ? 'space' : key.key}
+                </Text>
+                <Text fontSize="xs" color="var(--tt-muted)">
+                  {key.misses.toLocaleString()}/{key.attempts.toLocaleString()}
+                </Text>
+                <Text fontSize="xs" color="var(--tt-wrong)">
+                  {Math.round(key.rate * 100)}%
+                </Text>
+              </Flex>
+            ))}
+          </Flex>
+        </Box>
       )}
 
       {overview && overview.topTracks.length > 0 && (

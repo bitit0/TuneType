@@ -1,6 +1,7 @@
 import type {
   AccountStats,
   AvatarColor,
+  KeyTally,
   RunSubmission,
   StatAccumulators,
   TrackBest,
@@ -36,7 +37,32 @@ export function emptyAccumulators(): StatAccumulators {
     linesAttempted: 0,
     linesCompleted: 0,
     totalTypingMs: 0,
+    keyTally: {},
   };
+}
+
+/**
+ * Adds one run's key counts into a lifetime tally.
+ *
+ * Returns a new object rather than mutating, like every other accumulator here, because the result
+ * is written inside a Firestore transaction that may be retried — folding a run into the totals
+ * twice would be invisible and permanent.
+ */
+export function mergeKeyTally(lifetime: KeyTally, run: KeyTally): KeyTally {
+  const merged: KeyTally = {};
+
+  for (const [key, entry] of Object.entries(lifetime)) {
+    merged[key] = { attempts: entry.attempts, misses: entry.misses };
+  }
+
+  for (const [key, entry] of Object.entries(run)) {
+    const existing = merged[key];
+    merged[key] = existing
+      ? { attempts: existing.attempts + entry.attempts, misses: existing.misses + entry.misses }
+      : { attempts: entry.attempts, misses: entry.misses };
+  }
+
+  return merged;
 }
 
 /**
@@ -89,6 +115,7 @@ export function applyRun(
     linesAttempted: accumulators.linesAttempted + run.linesAttempted,
     linesCompleted: accumulators.linesCompleted + run.linesCompleted,
     totalTypingMs: accumulators.totalTypingMs + run.typingMs,
+    keyTally: mergeKeyTally(accumulators.keyTally, run.keyTally),
   };
 }
 

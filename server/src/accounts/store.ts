@@ -70,6 +70,7 @@ function readAccumulators(data: admin.firestore.DocumentData | undefined): StatA
     linesAttempted: stored.linesAttempted ?? empty.linesAttempted,
     linesCompleted: stored.linesCompleted ?? empty.linesCompleted,
     totalTypingMs: stored.totalTypingMs ?? empty.totalTypingMs,
+    keyTally: stored.keyTally ?? empty.keyTally,
   };
 }
 
@@ -233,6 +234,16 @@ export async function saveRun(
     submission.typingMs,
   );
 
+  /*
+   * The key tally is split off here and never reaches the run document.
+   *
+   * It is summed into the account's lifetime totals a few lines below and then dropped. Spread
+   * across an account's whole history it is a fact about how someone types; stored next to an
+   * lrclibId it would be a letter histogram of one track's words, which is the thing the legal
+   * posture rules out. `SavedRun` omits the field so this cannot be undone by accident.
+   */
+  const { keyTally: _keyTally, ...storedFields } = submission;
+
   const accumulators = await firestore.runTransaction(async (tx) => {
     // Every read must precede every write inside a transaction.
     const [profileSnap, bestSnap] = await Promise.all([tx.get(profileRef), tx.get(bestRef)]);
@@ -246,7 +257,7 @@ export async function saveRun(
     );
 
     tx.set(runRef, {
-      ...submission,
+      ...storedFields,
       playedAt: admin.firestore.Timestamp.fromMillis(playedAt),
     });
     tx.update(profileRef, {
@@ -262,7 +273,7 @@ export async function saveRun(
   });
 
   return {
-    run: { ...submission, id: runRef.id, playedAt, ...metrics },
+    run: { ...storedFields, id: runRef.id, playedAt, ...metrics },
     stats: toAccountStats(accumulators),
   };
 }

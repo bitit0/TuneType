@@ -1,5 +1,6 @@
 import type {
   AccountOverview,
+  Keystroke,
   AccountStats,
   PlayableTrack,
   ProfilePatch,
@@ -10,6 +11,7 @@ import type {
 } from '@shared/types';
 import { apiFetch } from './client';
 import { analyzeDifficulty } from '@/lib/scoring/difficulty';
+import { tallyKeys } from '@/lib/scoring/keys';
 
 /** Typed calls against /api/account. Every one of them requires a signed-in user. */
 
@@ -51,6 +53,7 @@ export function toRunSubmission(
   videoId: string,
   offsetMs: number,
   summary: RunSummary,
+  keystrokes: Keystroke[],
 ): RunSubmission {
   let correctChars = 0;
   let typedChars = 0;
@@ -76,5 +79,9 @@ export function toRunSubmission(
     // Derived from the LRC timings, which the server never sees — so it has to travel with the
     // run. An aggregate pace, not content: see the field's note in shared/src/types.ts.
     requiredWpm: Number(analyzeDifficulty(track.lines).requiredWpm.toFixed(2)),
+    // Counts per key, with the order stripped out — the only thing derived from what was typed
+    // that may leave the browser. The server adds it to a lifetime total and keeps nothing
+    // track-specific: see the field's note in shared/src/types.ts.
+    keyTally: tallyKeys(keystrokes),
   };
 }

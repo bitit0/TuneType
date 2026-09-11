@@ -4,10 +4,12 @@ import { isWrongVideoSignal } from '../offsets/consensus.js';
 /**
  * Ranking YouTube candidates for a known track.
  *
- * The search direction matters and is fixed by the design: we start from a canonical LRCLIB track
- * — artist, title, album, duration — and look for a video of it. We never find a video first and
- * then hunt for lyrics. Everything here assumes the track is the known quantity and the video is
- * the thing under suspicion.
+ * Direction matters, and this module only runs one way: from a canonical LRCLIB track — artist,
+ * title, album, duration — to a video of it. Everything here assumes the track is the known
+ * quantity and the video is the thing under suspicion, which is why none of it applies to a
+ * free-text video search, where no track is known yet. The reverse trip, video to lyrics, lives in
+ * the browser in `client/src/lib/lrclib/match.ts` and mirrors these heuristics rather than sharing
+ * them.
  *
  * This module is pure. It takes candidates and a track and returns an ordering, with no network
  * and no clock, which is what makes the heuristics testable against fixtures rather than against

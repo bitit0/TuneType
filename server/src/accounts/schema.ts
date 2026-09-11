@@ -28,6 +28,41 @@ const MAX_RUN_MS = 2 * 60 * 60 * 1000;
 /** Comfortably past the world record; anything beyond is a broken client or a fabrication. */
 const MAX_CHARS = 100_000;
 
+/**
+ * How many distinct keys one run may report.
+ *
+ * A song draws on an alphabet, punctuation and the odd accented letter — a couple of hundred
+ * covers any script. The cap is not about plausibility so much as about growth: this map is summed
+ * into a profile document that is read on every page load, and an unbounded key space is how that
+ * document quietly becomes expensive.
+ */
+const MAX_DISTINCT_KEYS = 256;
+
+/**
+ * Miss counts per key.
+ *
+ * Keys are up to four characters rather than one because a single code point outside the basic
+ * plane is two UTF-16 units, and `.length` counts units. Rejecting those would refuse a run for
+ * containing an emoji in a lyric line.
+ */
+const keyTallySchema = z
+  .record(
+    z.string().min(1).max(4),
+    z.object({
+      attempts: z.number().int().nonnegative().max(MAX_CHARS),
+      misses: z.number().int().nonnegative().max(MAX_CHARS),
+    }),
+  )
+  .refine((tally) => Object.keys(tally).length <= MAX_DISTINCT_KEYS, {
+    message: `A run may report at most ${MAX_DISTINCT_KEYS} distinct keys.`,
+  })
+  .refine((tally) => Object.values(tally).every((entry) => entry.misses <= entry.attempts), {
+    message: 'A key cannot be missed more often than it came up.',
+  })
+  // Absent on runs from a client older than this field, and an empty tally is the honest default:
+  // no keys reported is not the same claim as no keys missed, but it accumulates identically.
+  .default({});
+
 export const runSubmissionSchema = z
   .object({
     lrclibId: z.number().int().nonnegative(),
@@ -47,6 +82,7 @@ export const runSubmissionSchema = z
     // minute would quietly change the comparison it exists to support. Absent on runs saved before
     // this field existed, which is why it defaults rather than failing them.
     requiredWpm: z.number().nonnegative().max(1_000).default(0),
+    keyTally: keyTallySchema,
   })
   // Cross-field checks. Each of these is individually plausible and jointly impossible, which is
   // exactly the kind of corruption that survives per-field validation and then quietly makes an

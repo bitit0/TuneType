@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import {
   findVideos,
+  findVideosByQuery,
   isYouTubeConfigured,
   QuotaExceededError,
   YouTubeUnavailableError,
@@ -69,6 +70,39 @@ youtubeRouter.get('/search', async (req, res) => {
     if (error instanceof YouTubeUnavailableError) {
       // 503 is what the client already treats as "not configured" — the same shrug the account
       // routes get when there is no Firebase project.
+      res.status(503).json({ error: error.message });
+      return;
+    }
+
+    console.error('[youtube]', error);
+    res.status(502).json({ error: 'Could not reach YouTube. Paste a video link instead.' });
+  }
+});
+
+const videoQuerySchema = z.object({ q: z.string().trim().min(1).max(300) });
+
+/**
+ * Free-text video search — the video-first way into a song.
+ *
+ * Unlike `/search` there is no cache-only mode. That mode exists so that opening the video screen
+ * costs nothing, and a typed query has no equivalent: it only arrives because someone asked for it.
+ */
+youtubeRouter.get('/videos', async (req, res) => {
+  const parsed = videoQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Type something to search for.' });
+    return;
+  }
+
+  try {
+    res.json(await findVideosByQuery(parsed.data.q));
+  } catch (error) {
+    if (error instanceof QuotaExceededError) {
+      res.status(429).json({ error: error.message, quota: await quotaStatus() });
+      return;
+    }
+
+    if (error instanceof YouTubeUnavailableError) {
       res.status(503).json({ error: error.message });
       return;
     }

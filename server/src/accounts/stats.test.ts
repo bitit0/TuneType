@@ -10,6 +10,7 @@ import {
   deriveMetrics,
   emptyAccumulators,
   isAvatarColor,
+  mergeKeyTally,
   isValidPhotoDataUri,
   normalizeDisplayName,
   toAccountStats,
@@ -31,6 +32,7 @@ function run(overrides: Partial<RunSubmission> = {}): RunSubmission {
     elapsedMs: 200_000,
     offsetMs: 0,
     requiredWpm: 60,
+    keyTally: {},
     ...overrides,
   };
 }
@@ -217,5 +219,32 @@ describe('isValidPhotoDataUri', () => {
   it('accepts padding', () => {
     expect(isValidPhotoDataUri('data:image/png;base64,AAA=')).toBe(true);
     expect(isValidPhotoDataUri('data:image/png;base64,AA==')).toBe(true);
+  });
+});
+
+describe('mergeKeyTally', () => {
+  it('sums attempts and misses per key across runs', () => {
+    const merged = mergeKeyTally(
+      { e: { attempts: 10, misses: 2 }, a: { attempts: 5, misses: 0 } },
+      { e: { attempts: 4, misses: 3 }, z: { attempts: 1, misses: 1 } },
+    );
+
+    expect(merged).toEqual({
+      e: { attempts: 14, misses: 5 },
+      a: { attempts: 5, misses: 0 },
+      z: { attempts: 1, misses: 1 },
+    });
+  });
+
+  it('does not mutate either side, since a transaction can retry', () => {
+    const lifetime = { e: { attempts: 10, misses: 2 } };
+    mergeKeyTally(lifetime, { e: { attempts: 4, misses: 3 } });
+
+    expect(lifetime).toEqual({ e: { attempts: 10, misses: 2 } });
+  });
+
+  it('carries a run tally through applyRun into the lifetime totals', () => {
+    const after = applyRun(emptyAccumulators(), run({ keyTally: { r: { attempts: 8, misses: 3 } } }), 60);
+    expect(after.keyTally).toEqual({ r: { attempts: 8, misses: 3 } });
   });
 });

@@ -128,8 +128,8 @@ export function ResultsPage() {
     savedKey.current = key;
 
     resetSaveState();
-    void saveRun(track, videoId, offsetMs, summary);
-  }, [user, track, videoId, offsetMs, summary, saveRun, resetSaveState]);
+    void saveRun(track, videoId, offsetMs, summary, keystrokes);
+  }, [user, track, videoId, offsetMs, summary, keystrokes, saveRun, resetSaveState]);
 
   if (!track) return <Navigate to="/" replace />;
 

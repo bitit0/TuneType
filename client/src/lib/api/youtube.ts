@@ -1,4 +1,4 @@
-import type { PlayableTrack, VideoSearchResponse } from '@shared/types';
+import type { PlayableTrack, QuotaStatus, VideoQueryResponse, VideoSearchResponse } from '@shared/types';
 import { apiFetch, ApiError } from './client';
 
 /**
@@ -28,6 +28,35 @@ export function searchVideos(
   params.set('lrclibId', String(track.lrclibId));
 
   return apiFetch<VideoSearchResponse>(`/api/youtube/search?${params}`, { signal: options.signal });
+}
+
+/**
+ * Videos for a free-text query — the video-first way in.
+ *
+ * No cache-only mode, unlike the call above. That one exists so that opening the video screen
+ * spends nothing; here the user has typed something and pressed search, which is the act of
+ * asking, so the only thing standing between this and the API is the daily budget.
+ */
+export function searchVideosByQuery(
+  query: string,
+  signal?: AbortSignal,
+): Promise<VideoQueryResponse> {
+  return apiFetch<VideoQueryResponse>(`/api/youtube/videos?q=${encodeURIComponent(query)}`, {
+    signal,
+  });
+}
+
+/**
+ * Whether this server can search YouTube at all.
+ *
+ * Costs no quota, which is what lets the video-first page ask before offering a search box. A
+ * server with no API key is not broken — it is one where the lyrics-first flow is the only flow,
+ * and that is worth knowing before the user types rather than after.
+ */
+export function fetchYouTubeStatus(
+  signal?: AbortSignal,
+): Promise<{ configured: boolean; quota: QuotaStatus }> {
+  return apiFetch<{ configured: boolean; quota: QuotaStatus }>('/api/youtube/status', { signal });
 }
 
 /**
