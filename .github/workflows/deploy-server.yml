@@ -43,7 +43,10 @@ jobs:
           region: ${{ vars.GCP_REGION || 'us-central1' }}
           # Cloud Build compiles the Dockerfile, so the runner needs no Docker of its own.
           source: .
-          flags: --allow-unauthenticated
+          # --max-instances caps the blast radius. Cloud Run's default is 100, and this is a
+          # personal project whose own daily search budget is 80 calls: there is no traffic that
+          # three instances cannot serve, and a runaway loop or a scraper cannot bill past them.
+          flags: --allow-unauthenticated --max-instances=3
           env_vars: |-
             ALLOWED_ORIGINS=${{ vars.ALLOWED_ORIGINS }}
             ADMIN_EMAILS=${{ vars.ADMIN_EMAILS }}

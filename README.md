@@ -432,6 +432,27 @@ Variables:
 copes with it being unset — nothing answers at `/api`, so the front page searches LRCLIB instead.
 Set it and push again to join the two halves together.
 
+**Billing has to be enabled on the project, and that has a consequence worth knowing.** Cloud Run,
+Cloud Build, Artifact Registry and Secret Manager all require a billing account even to use their
+free tiers. Firestore does not, which is why a project can run for a long time without one.
+Attaching billing moves a Firebase project from Spark to Blaze, and Firestore stops being
+hard-capped: past the free quota it bills rather than fails.
+
+At one person's traffic this costs nothing. Three things keep it that way:
+
+```bash
+# Cap the instance count, so no spike or loop can bill past it.
+#   (already set by the deploy workflow: --max-instances=3)
+
+# Delete images older than a month, so Artifact Registry storage cannot creep.
+gcloud artifacts repositories create cloud-run-source-deploy   --repository-format=docker --location=us-central1 2>/dev/null
+gcloud artifacts repositories set-cleanup-policies cloud-run-source-deploy   --location=us-central1 --policy=<(echo '[{"name":"stale","action":{"type":"Delete"},
+    "condition":{"olderThan":"2592000s","tagState":"ANY"}}]')
+
+# And a budget that emails before anything surprising happens.
+#   Billing → Budgets & alerts → Create budget → $1, alert at 100%.
+```
+
 **Cloud Run scales to zero, and that is fine for the quota and awkward for the rate limiter.** The
 daily search budget persists to Firestore, so a cold start cannot lose count. The per-address rate
 limit is in memory, so a cold start resets it — if the service sleeps often enough for that to
