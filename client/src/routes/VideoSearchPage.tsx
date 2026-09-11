@@ -106,9 +106,13 @@ export function VideoSearchPage() {
     const controller = new AbortController();
     fetchYouTubeStatus(controller.signal)
       .then((status) => setConfigured(status.configured))
-      // A status call that fails says nothing about the key, so assume the usual case and let a
-      // real search produce a real error message.
-      .catch(() => setConfigured(null));
+      .catch((error: unknown) => {
+        // Nothing answering at that path means there is no server at all — a static deployment.
+        // Handing over to the song-first flow beats offering a search box that cannot work.
+        // Any other failure says nothing about the key, so assume the usual case and let a real
+        // search produce a real error message.
+        setConfigured(isUnavailable(error) ? false : null);
+      });
     return () => controller.abort();
   }, []);
 

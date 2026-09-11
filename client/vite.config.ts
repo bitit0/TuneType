@@ -3,6 +3,15 @@ import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
+  /*
+   * Where the app is served from.
+   *
+   * Root in development and on any host that owns its domain. A GitHub project page lives under
+   * /<repo>/, so the Pages workflow sets BASE_PATH and every emitted asset URL picks it up. The
+   * router reads the same value back through import.meta.env.BASE_URL, so the two cannot disagree.
+   */
+  base: process.env.BASE_PATH ?? '/',
+
   plugins: [react()],
   envDir: fileURLToPath(new URL('..', import.meta.url)),
   resolve: {

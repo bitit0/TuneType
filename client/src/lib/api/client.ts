@@ -22,9 +22,16 @@ export class ApiError extends Error {
   }
 }
 
-/** True when the server said "not configured" rather than "that went wrong". */
+/**
+ * True when this feature has no server behind it, rather than the server having gone wrong.
+ *
+ * 503 is the server saying so itself — no Firebase project, no API key. 404 means nothing answers
+ * at that path at all, which is what a static deployment looks like: the client is served from a
+ * CDN and there is no Express process anywhere. Both mean the same thing to a caller, which is to
+ * offer the path that needs no server instead of an error.
+ */
 export function isUnavailable(error: unknown): boolean {
-  return error instanceof ApiError && error.status === 503;
+  return error instanceof ApiError && (error.status === 503 || error.status === 404);
 }
 
 interface RequestOptions {

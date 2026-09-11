@@ -347,6 +347,28 @@ isn't incidental: it means no cache can form on our side by accident. Lyrics liv
 duration of a run and are never written to disk, never proxied, and never committed. Test fixtures
 are synthetic. Nothing in this repo is lyrics content, and it should stay that way.
 
+## Deploying
+
+`.github/workflows/pages.yml` publishes the client to GitHub Pages on every push to `main`. Enable
+it once under **Settings → Pages → Source → GitHub Actions**; nothing else is needed.
+
+**What that gets you is the client, and only the client.** Pages serves static files, so there is no
+Express process — which means no YouTube search, no accounts, no setlists and no shared offsets.
+What remains is the flow the project has always supported with an empty `.env`: search LRCLIB from
+the browser, paste a video link, play, and see your results. Every server-backed screen says so
+plainly rather than failing; the front page hands over to the song-first search on its own when
+nothing answers at `/api`.
+
+Two details make it work under `bitit0.github.io/TuneType/` rather than at a domain root. `BASE_PATH`
+is set by the workflow and read by Vite, and the router reads the same value back through
+`import.meta.env.BASE_URL`, so the two cannot disagree. `404.html` is a copy of `index.html`, which
+is how a deep link like `/setlists/hard` boots the app instead of GitHub's not-found page.
+
+**To get the full app, the server has to live somewhere that runs Node** — Render, Railway and Fly
+all have a free tier that fits it. Deploy `server/`, then point the client at it by setting
+`VITE_API_BASE` to its URL at build time and adding the Pages origin to `ALLOWED_ORIGINS` on the
+server. Nothing else changes; the seam is already there.
+
 ## Tests
 
 ```bash
