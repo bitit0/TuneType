@@ -1,6 +1,14 @@
 import { Box, Heading, Link as ChakraLink, Stack, Text } from '@chakra-ui/react';
 import { REPO_URL } from '@/components/SiteFooter';
 
+/**
+ * Sets out the terms, and states the copyright position.
+ *
+ * The copyright section is why this page exists. Lyrics belong to their publishers, LRCLIB being
+ * free to query grants no licence over them, and the whole architecture is bent around that fact.
+ * Saying so plainly beats a page of boilerplate that pretends the question never came up.
+ */
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <Box>
@@ -14,14 +22,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-/**
- * Terms, and the copyright position.
- *
- * The second section is the one that matters and is the reason this page exists at all: lyrics are
- * publisher-copyrighted, LRCLIB being free to query confers no licence, and the architecture is
- * bent around that fact. Saying so plainly is more honest than a page of boilerplate that pretends
- * the question never came up.
- */
 export function TermsPage() {
   return (
     <Stack gap={7} maxW="3xl">
@@ -30,31 +30,31 @@ export function TermsPage() {
           Terms
         </Heading>
         <Text color="var(--tt-muted)">
-          A personal project, offered as is. Short, because there is not much to say.
+          This is a personal project offered as is, so there is not much to say.
         </Text>
       </Box>
 
       <Section title="Using it">
         <Text>
           Play as much as you like. Do not attack it — no scraping the search endpoints, no
-          automating runs to inflate a leaderboard, nothing that spends the shared daily search
-          budget on something other than finding a song.
+          automating runs to inflate a leaderboard, and nothing that spends the shared daily search
+          budget on anything other than finding a song.
         </Text>
         <Text>
-          There is no uptime promise and no guarantee your saved runs will outlive the project. Back
-          up nothing here that you would miss.
+          Nobody promises uptime here, and your saved runs may not outlive the project. Keep nothing
+          here that you would miss.
         </Text>
       </Section>
 
       <Section title="Lyrics and copyright">
         <Text>
-          Song lyrics are copyrighted by their publishers, and LRCLIB being free to query confers no
-          licence over them. This site does not store, cache, proxy or redistribute them: your
-          browser fetches them from LRCLIB directly and discards them when the song ends.
+          Song lyrics belong to their publishers, and LRCLIB being free to query grants no licence
+          over them. This site never stores, caches, proxies or redistributes them. Your browser
+          fetches them from LRCLIB directly and discards them when the song ends.
         </Text>
         <Text>
-          Videos are played through YouTube's own embedded player, which is how they are licensed to
-          be played, and are never downloaded or re-hosted.
+          Videos play through YouTube's own embedded player, which is how they are licensed to be
+          played. Nothing here downloads or re-hosts them.
         </Text>
         <Text>
           If you hold rights to something reachable here and want it gone, say so and it will be
@@ -64,8 +64,8 @@ export function TermsPage() {
 
       <Section title="Your account">
         <Text>
-          You can delete it whenever you want, from your profile page, and that removes everything
-          tied to it. An account may be removed if it is used to attack the service.
+          You can delete it whenever you want from your profile page, and deleting removes
+          everything tied to it. An account used to attack the service may be removed.
         </Text>
       </Section>
 

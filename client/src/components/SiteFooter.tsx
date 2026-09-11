@@ -2,11 +2,11 @@ import { Box, Container, Flex, Link as ChakraLink, Text } from '@chakra-ui/react
 import { Link } from 'react-router-dom';
 
 /**
- * The footer, on every page.
+ * Shows the legal pages and the contact route on every page.
  *
- * Also the contact route. This is a personal project with no support address to publish, and the
- * repository's issue tracker is both a real inbox and one where the answer is visible to whoever
- * asks the same thing next.
+ * Contact points at the repository's issues because this is a personal project with no support
+ * address to publish, and an issue is both a real inbox and a place where the answer stays visible
+ * to whoever asks the same thing next.
  */
 
 export const REPO_URL = 'https://github.com/bitit0/TuneType';
@@ -15,6 +15,20 @@ function FooterLink({ to, children }: { to: string; children: React.ReactNode })
   return (
     <ChakraLink asChild color="var(--tt-muted)" _hover={{ color: 'var(--tt-text)' }}>
       <Link to={to}>{children}</Link>
+    </ChakraLink>
+  );
+}
+
+function ExternalLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <ChakraLink
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      color="var(--tt-muted)"
+      _hover={{ color: 'var(--tt-text)' }}
+    >
+      {children}
     </ChakraLink>
   );
 }
@@ -34,30 +48,13 @@ export function SiteFooter() {
           <Flex gap={5} wrap="wrap">
             <FooterLink to="/privacy">Privacy</FooterLink>
             <FooterLink to="/terms">Terms</FooterLink>
-            <ChakraLink
-              href={`${REPO_URL}/issues`}
-              target="_blank"
-              rel="noreferrer"
-              color="var(--tt-muted)"
-              _hover={{ color: 'var(--tt-text)' }}
-            >
-              Contact
-            </ChakraLink>
-            <ChakraLink
-              href={REPO_URL}
-              target="_blank"
-              rel="noreferrer"
-              color="var(--tt-muted)"
-              _hover={{ color: 'var(--tt-text)' }}
-            >
-              Source
-            </ChakraLink>
+            <ExternalLink href={`${REPO_URL}/issues`}>Contact</ExternalLink>
+            <ExternalLink href={REPO_URL}>Source</ExternalLink>
           </Flex>
 
           {/*
-            Credit where the two things this app is made of actually come from. Neither is ours, and
-            a visitor wondering where the words or the audio came from deserves the answer on the
-            page rather than in a policy.
+            The words and the audio both come from somewhere else, and a visitor wondering where
+            deserves the answer on the page instead of buried in a policy.
           */}
           <Text fontSize="xs">
             Lyrics from LRCLIB · Video from YouTube · Not affiliated with either
