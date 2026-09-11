@@ -18,6 +18,7 @@ import { BAND_PALETTE } from '@/components/Difficulty/PaceBadge';
 import { CurateDialog } from '@/components/Setlists/CurateDialog';
 import { useSessionStore } from '@/store/sessionStore';
 import { useAccountStore } from '@/store/accountStore';
+import { useAuthStore } from '@/store/authStore';
 import { keyWeights, practiceFit } from '@/lib/scoring/practice';
 
 /**
@@ -76,6 +77,19 @@ export function SetlistsPage() {
   /** Lifetime key counts, the input to the practice picks below. Null when signed out. */
   const keyTally = useAccountStore((s) => s.overview?.stats.keyTally ?? null);
 
+  /*
+   * Reading setlists works signed out, but the same response carries `canCurate` — and that is only
+   * true if a token went with the request. Firebase restores the session asynchronously, so on a
+   * cold load `currentUser` is still null when this page mounts and the request goes out as a
+   * guest. The curator then sees no editing controls on their own setlists until they navigate
+   * again.
+   *
+   * Waiting on `initializing` closes that window, and keying the effect on the uid reloads when the
+   * session actually resolves — or when someone signs in or out without leaving the page.
+   */
+  const authInitializing = useAuthStore((s) => s.initializing);
+  const uid = useAuthStore((s) => s.user?.uid ?? null);
+
   const [picks, setPicks] = useState<PracticePick[] | null>(null);
   const [picking, setPicking] = useState(false);
 
@@ -100,9 +114,10 @@ export function SetlistsPage() {
   }, []);
 
   useEffect(() => {
+    if (authInitializing) return;
     void load();
     return () => abortRef.current?.abort();
-  }, [load]);
+  }, [load, authInitializing, uid]);
 
   /**
    * Starts a run from a curated entry.

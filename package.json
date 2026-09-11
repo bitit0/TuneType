@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc -b client server",
     "chart:drift": "tsx scripts/drift-chart.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "seed:setlists": "tsx --tsconfig client/tsconfig.json scripts/seed-setlists.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
