@@ -27,6 +27,15 @@ function lineShare(line: LineResult): number {
 /** Keys with no glyph of their own, so a row does not render as blank. */
 const KEY_LABEL: Record<string, string> = { ' ': 'space' };
 
+/**
+ * The per-line table's columns, shared by its header and its rows.
+ *
+ * One template rather than matching widths on each cell, so the two cannot drift apart. The lyric
+ * column takes what is left; everything else is fixed, because numbers in a ragged column are
+ * harder to compare than the comparison is worth.
+ */
+const LINE_COLUMNS = '44px minmax(0, 1fr) 56px 48px 60px 60px';
+
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <Box borderWidth="1px" borderColor="var(--tt-border)" borderRadius="md" p={4}>
@@ -293,10 +302,36 @@ export function ResultsPage() {
               {worstFirst ? 'In order' : 'Worst first'}
             </Button>
           </Flex>
-          <Text fontSize="xs" color="var(--tt-muted)" mb={3}>
-            Time typing · accuracy · timing multiplier · score
-          </Text>
           <Stack gap={1} maxH="320px" overflowY="auto">
+            {/*
+              Sticky, and inside the scroll container rather than above it. A header outside would
+              sit beside the scrollbar instead of over it, and every column would be off by its
+              width the moment the list overflowed.
+            */}
+            <Grid
+              templateColumns={LINE_COLUMNS}
+              gap={3}
+              position="sticky"
+              top={0}
+              zIndex={1}
+              bg="var(--tt-bg)"
+              alignItems="center"
+              fontSize="xs"
+              color="var(--tt-muted)"
+              letterSpacing="wide"
+              px={3}
+              py={1}
+              borderWidth="1px"
+              borderColor="transparent"
+            >
+              <Box>#</Box>
+              <Box />
+              <Box textAlign="right">TYPING</Box>
+              <Box textAlign="right">ACC</Box>
+              <Box textAlign="right">TIMING</Box>
+              <Box textAlign="right">SCORE</Box>
+            </Grid>
+
             {(worstFirst
               ? [...summary.lines].sort((a, b) => lineShare(a) - lineShare(b))
               : summary.lines
@@ -304,11 +339,11 @@ export function ResultsPage() {
               const accuracy =
                 line.typedChars === 0 ? 0 : Math.round((line.correctChars / line.typedChars) * 100);
               return (
-                <Flex
+                <Grid
                   key={line.lineIndex}
-                  justify="space-between"
-                  align="center"
+                  templateColumns={LINE_COLUMNS}
                   gap={3}
+                  alignItems="center"
                   fontSize="sm"
                   px={3}
                   py={2}
@@ -316,33 +351,26 @@ export function ResultsPage() {
                   borderColor="var(--tt-border)"
                   borderRadius="sm"
                 >
-                  <Text color="var(--tt-muted)" minW="40px">
-                    #{line.lineIndex + 1}
-                  </Text>
+                  <Text color="var(--tt-muted)">#{line.lineIndex + 1}</Text>
                   {/*
                     The words themselves, so a bad row says which line it was. They are already in
                     memory for the run and go no further — the same rule the saved run follows.
                   */}
-                  <Text flex="1" minW={0} truncate>
-                    {track.lines[line.lineIndex]?.text ?? ''}
-                  </Text>
-                  <Text minW="56px" textAlign="right" color="var(--tt-muted)">
+                  <Text truncate>{track.lines[line.lineIndex]?.text ?? ''}</Text>
+                  <Text textAlign="right" color="var(--tt-muted)">
                     {(line.typingMs / 1000).toFixed(1)}s
                   </Text>
-                  <Text minW="48px" textAlign="right">
-                    {accuracy}%
-                  </Text>
+                  <Text textAlign="right">{accuracy}%</Text>
                   <Text
-                    minW="56px"
                     textAlign="right"
                     color={line.timingMultiplier === 1 ? 'var(--tt-correct)' : 'var(--tt-muted)'}
                   >
                     ×{line.timingMultiplier.toFixed(2)}
                   </Text>
-                  <Text minW="56px" textAlign="right" fontWeight="semibold">
+                  <Text textAlign="right" fontWeight="semibold">
                     {line.score}
                   </Text>
-                </Flex>
+                </Grid>
               );
             })}
           </Stack>

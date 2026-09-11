@@ -154,14 +154,21 @@ test('the header paints above the home page backdrop', async ({ page }) => {
   const stacking = await page.evaluate(() => {
     const aurora = document.querySelector('.tt-aurora');
     const header = document.querySelector('header');
-    if (!aurora || !header) return null;
+    const main = document.querySelector('main');
+    if (!aurora || !header || !main) return null;
 
     const read = (el: Element) => {
       const style = getComputedStyle(el);
       return { position: style.position, zIndex: Number(style.zIndex) || 0 };
     };
 
-    return { aurora: read(aurora), header: read(header) };
+    // The page's own content layer, which lifts itself above the aurora and so competes with the
+    // header. Deepest positioned descendant with a z-index is close enough for this check.
+    const content = [...main.querySelectorAll<HTMLElement>('*')]
+      .map(read)
+      .filter((s) => s.position !== 'static' && s.zIndex > 0);
+
+    return { aurora: read(aurora), header: read(header), content };
   });
 
   expect(stacking).not.toBeNull();
@@ -169,4 +176,16 @@ test('the header paints above the home page backdrop', async ({ page }) => {
   // Static content always loses to a positioned sibling, however early it appears in the document.
   expect(stacking!.header.position).not.toBe('static');
   expect(stacking!.header.zIndex).toBeGreaterThan(stacking!.aurora.zIndex);
+
+  /*
+   * And above the page's content layer, which the first version of this test did not check.
+   *
+   * Positioning the header opened a stacking context, so the account dropdown's own z-index stopped
+   * competing globally and the header started competing with page content as one unit. At equal
+   * z-index the later element in the document wins, and the dropdown rendered underneath the page —
+   * visible, and swallowing every click aimed at it.
+   */
+  for (const layer of stacking!.content) {
+    expect(stacking!.header.zIndex).toBeGreaterThan(layer.zIndex);
+  }
 });

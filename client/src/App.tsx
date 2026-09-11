@@ -47,18 +47,26 @@ export default function App() {
   return (
     <Flex direction="column" minH="100%">
       {/*
-        Positioned, so the home page's fixed aurora cannot paint over it.
+        Three layers, and the header has to be the top one.
 
-        A fixed element with `z-index: 0` still sits in the positioned-elements layer, which paints
-        above in-flow static content however early that content appears in the document. The header
-        was static, so the aurora covered it completely — visible as a header that simply was not
-        there. Negative z-index on the aurora is not the fix: html carries a background, so body's
-        own background stops propagating to the canvas and paints over anything behind it.
+        The home page paints a fixed aurora at z-index 0, and its content sits at z-index 1 to stay
+        above it. Both are positioned, and positioned elements paint above in-flow static content
+        however early that content appears — which is why a static header was covered by the aurora
+        entirely, at full opacity, looking like it had failed to render.
+
+        Ten rather than one, because `position` here also opens a stacking context: the account
+        dropdown's own z-index is scoped inside it, so the header competes with page content as a
+        single unit. At equal z-index the later element in the document wins, and the dropdown was
+        rendering under the page and swallowing its own clicks.
+
+        Negative z-index on the aurora solves neither and breaks a third thing: html carries a
+        background, so body's background no longer propagates to the canvas and would paint over
+        anything sitting behind it.
       */}
       <Box
         as="header"
         position="relative"
-        zIndex={1}
+        zIndex={10}
         borderBottom="1px solid var(--tt-border)"
         bg="var(--tt-surface)"
       >
