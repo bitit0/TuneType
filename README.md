@@ -133,21 +133,49 @@ could fix.
 
 ## The timing layer
 
-The YouTube player runs in a cross-origin iframe, so there's no access to audio samples and no way
-to derive sync automatically. The only time source is `getCurrentTime()`, which updates in steps of
-roughly 250ms. Driving lyrics off it directly stutters visibly.
+This is the part of the project worth reading.
 
-`client/src/lib/timing/VirtualClock.ts` solves this with two ideas:
+The YouTube player runs in a cross-origin iframe, so there are no audio samples to read and no way
+to derive sync automatically. The only time source is `getCurrentTime()`, and it advances in steps
+of roughly 250ms. Poll it at 100ms and two thirds of the readings are stale repeats of the last
+one.
 
-- **Anchor on step edges, not on every poll.** Any single reading lags true playback by an unknown
-  0–250ms, but the *instant the value changes* pins true time to within one poll interval. Only
-  those transitions re-anchor the clock; repeated readings are ignored.
-- **Slew, don't snap.** A small disagreement bends the clock's *rate* (within ±2%) to converge over
-  about a second, so drift correction stays invisible. Only a jump too large to be drift — a seek —
-  causes a hard resync.
+Using those readings directly is the obvious approach and it fails in a specific way. The reported
+position is never ahead of true playback and is usually behind it, by an amount that sweeps from
+zero up to a full step and then resets. Lyrics driven off it do not drift — they stutter, holding
+still for two frames and then lurching forward. Worse, the error is invisible to the thing that
+would catch it: every individual reading looks perfectly reasonable.
 
-The debug overlay on the play screen shows virtual time, polled time, drift and rate. It's the
-instrument for every claim about sync: drift should stay inside ~50ms on a well-matched video.
+`client/src/lib/timing/VirtualClock.ts` runs its own clock and uses the player only to correct it.
+
+**Anchor on step edges, not on every poll.** Any single reading lags true playback by an unknown
+0–250ms, so treating each one as ground truth just imports the source's coarseness. But the
+*instant the value changes* is precise — at that moment true playback is pinned to within one poll
+interval. Only those transitions re-anchor the clock. Repeated readings are discarded without being
+looked at, which is the single line that does most of the work here.
+
+**Slew, don't snap.** When a fresh anchor disagrees with where the clock projected it would be,
+jumping to the new value is visible as a hitch. Instead the clock's *rate* bends by up to 2% and
+the disagreement is absorbed over about a second. Two percent is well under the ~4% where a change
+in scroll speed becomes perceptible, so corrections stay invisible. Only a disagreement too large
+to be drift — a seek, a stall, a backgrounded tab — earns a hard jump.
+
+![Clock error against true playback time](docs/drift.svg)
+
+Thirty seconds of playback against a player quantized to 250ms, polled every 100ms. Reading
+`getCurrentTime()` directly sweeps to **200ms** behind and resets, over and over. The virtual clock
+holds **13ms**, never leaving the ±50ms band, across 121 re-anchors and zero hard snaps.
+
+**What that chart is and is not.** It measures the real `VirtualClock`, constructed exactly as the
+app constructs it — regenerate it with `npm run chart:drift`, and it will disagree with this prose
+if the constants change. What it does not measure is a real video. Polling is perfectly regular
+here, the player never stalls, and the network does not exist. Treat 13ms as the floor and ~50ms as
+the number to hold against an actual song. The two-thirds-stale figure and the 200ms peak are
+properties of the source, and those are real.
+
+The debug overlay on the play screen shows virtual time, polled time, drift and rate while you
+play. It is the instrument for every claim above, and the honest way to check whether any of this
+survived contact with a real upload.
 
 ## Setlists
 

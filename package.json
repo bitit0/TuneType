@@ -14,7 +14,8 @@
     "build": "npm run build --workspace client",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -b client server"
+    "typecheck": "tsc -b client server",
+    "chart:drift": "tsx scripts/drift-chart.ts"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
