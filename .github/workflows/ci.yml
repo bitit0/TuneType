@@ -1,0 +1,33 @@
+name: CI
+
+# Pull requests and pushes to main only. Feature branches are covered by their PR, and running
+# both would double the queue for one commit.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `ci` rather than `install`: it installs from the lockfile exactly and fails if the lockfile
+      # and package.json disagree, which is the drift worth catching here.
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      # Catches what the other two cannot: a type-correct app that fails to bundle.
+      - name: Build
+        run: npm run build
