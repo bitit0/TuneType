@@ -12,7 +12,43 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TuneType</title>
+
+    <title>TuneType — type the lyrics as they're sung</title>
+    <meta
+      name="description"
+      content="A browser typing game. A YouTube video plays, synced lyrics scroll in time, and you type each line as it's sung."
+    />
+    <meta name="theme-color" content="#0e0f13" />
+
+    <!--
+      Three equalizer bars, matching the ones on the home page. SVG only, with no .ico fallback:
+      every browser that can run this app can render it, and shipping a second format would mean
+      keeping two marks in step for a case that no longer exists.
+    -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+    <!--
+      Link previews. Without these, sharing the URL anywhere renders a bare grey card.
+
+      `og:url` is deliberately absent until there is a domain to name. A wrong canonical URL is
+      worse than a missing one — scrapers treat it as authoritative and will follow it away from
+      the page that was actually shared.
+
+      The image is a capture of this page rather than a designed card, which is honest about what
+      the product looks like and needs no asset pipeline. It will go stale when the home page
+      changes; re-take it then.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="TuneType" />
+    <meta property="og:title" content="TuneType — type the lyrics as they're sung" />
+    <meta
+      property="og:description"
+      content="A browser typing game. A YouTube video plays, synced lyrics scroll in time, and you type each line as it's sung."
+    />
+    <meta property="og:image" content="/og.jpg" />
+    <meta property="og:image:width" content="1184" />
+    <meta property="og:image:height" content="575" />
+    <meta name="twitter:card" content="summary_large_image" />
   </head>
   <body>
     <div id="root"></div>

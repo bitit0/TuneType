@@ -1,0 +1,26 @@
+<!--
+  Three equalizer bars, echoing the ones on the home page.
+
+  Bars rather than a letterform: at 16px a glyph in this palette turns to mush, while three blocks
+  of different height stay readable and say "music" without a note cliché. Four bars was the first
+  try and the strokes thinned past legibility once scaled down.
+
+  The tile carries its own dark ground so the mark holds against light and dark browser chrome
+  alike, rather than depending on whatever sits behind it.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <defs>
+    <linearGradient id="bar" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#6c8cff" />
+      <stop offset="1" stop-color="#a855f7" />
+    </linearGradient>
+  </defs>
+
+  <rect width="32" height="32" rx="7" fill="#14161f" />
+
+  <g fill="url(#bar)">
+    <rect x="7" y="12" width="4" height="13" rx="2" />
+    <rect x="14" y="6" width="4" height="19" rx="2" />
+    <rect x="21" y="15" width="4" height="10" rx="2" />
+  </g>
+</svg>
