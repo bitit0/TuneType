@@ -8,6 +8,7 @@ import {
   YouTubeUnavailableError,
 } from '../youtube/api.js';
 import { quotaStatus } from '../youtube/quota.js';
+import { searchLimiter } from '../middleware/limits.js';
 
 /**
  * Video search.
@@ -43,7 +44,9 @@ const searchQuerySchema = z.object({
   lrclibId: z.coerce.number().int().nonnegative().optional(),
 });
 
-youtubeRouter.get('/search', async (req, res) => {
+// The tighter limit goes on the two routes that can spend a search, not on the router: /status is
+// a free read and the client calls it on every visit to the home page.
+youtubeRouter.get('/search', searchLimiter, async (req, res) => {
   const parsed = searchQuerySchema.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: 'A title and artist are required to search.' });
@@ -87,7 +90,7 @@ const videoQuerySchema = z.object({ q: z.string().trim().min(1).max(300) });
  * Unlike `/search` there is no cache-only mode. That mode exists so that opening the video screen
  * costs nothing, and a typed query has no equivalent: it only arrives because someone asked for it.
  */
-youtubeRouter.get('/videos', async (req, res) => {
+youtubeRouter.get('/videos', searchLimiter, async (req, res) => {
   const parsed = videoQuerySchema.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: 'Type something to search for.' });

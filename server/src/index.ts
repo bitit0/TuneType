@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { optionalAuth } from './middleware/auth.js';
+import { apiLimiter, corsOptions, trustProxyHops } from './middleware/limits.js';
 import { authUnavailableReason, isAuthAvailable } from './firebase.js';
 import { isFirestoreAvailable } from './firestore.js';
 import { accountRouter } from './routes/account.js';
@@ -16,8 +17,12 @@ dotenv.config({ path: fileURLToPath(new URL('../../.env', import.meta.url)) });
 const app = express();
 const port = Number(process.env.PORT ?? 8787);
 
-app.use(cors());
+// Behind a proxy the client address is a header, not the socket. See `trustProxyHops`.
+app.set('trust proxy', trustProxyHops());
+
+app.use(cors(corsOptions));
 app.use(express.json());
+app.use('/api', apiLimiter);
 app.use(optionalAuth);
 
 /**
