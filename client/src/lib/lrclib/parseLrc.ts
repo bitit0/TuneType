@@ -12,6 +12,7 @@ import type { LyricLine, LrcTimeMs } from '@shared/types';
  *  - metadata tags (`[ar:]`, `[ti:]`, `[length:]`) which are skipped
  *  - blank or whitespace-only lyric lines, which are dropped — they're gaps, not typing targets
  *  - lines arriving out of order, which are sorted
+ *  - parenthesised backing vocals, which are removed — see `stripParentheticals`
  */
 
 /** Matches one `[mm:ss]`, `[mm:ss.xx]` or `[mm:ss.xxx]` tag. */
@@ -22,6 +23,38 @@ const TIME_TAG = /\[(\d{1,3}):([0-5]?\d)(?:[.:](\d{1,3}))?\]/g;
  * rarely mark the end of the last line, so we give it a fixed tail.
  */
 export const FINAL_LINE_TAIL_MS = 5_000;
+
+/**
+ * Removes parenthesised passages from a lyric line.
+ *
+ * LRC files put backing vocals, ad-libs and answering phrases in brackets — "I keep on falling
+ * (falling)", "(ooh, ooh)". They are sung by someone else, they are usually repeats of the word
+ * just typed, and typing them is busywork that also wrecks the pace: a line's window is set by the
+ * lead vocal, and the ad-lib's characters come out of the same budget.
+ *
+ * Only balanced pairs are removed, innermost first so nesting is handled. An unclosed bracket is
+ * left alone deliberately — treating it as "delete to end of line" would swallow real lyrics on
+ * the strength of one stray character.
+ *
+ * A line that was nothing but an ad-lib becomes empty here, and the parser then drops it the same
+ * way it drops a blank line.
+ */
+export function stripParentheticals(text: string): string {
+  let out = text;
+
+  // Innermost-first, repeatedly, so "(a (b) c)" collapses fully rather than leaving ragged halves.
+  for (;;) {
+    const next = out.replace(/\([^()]*\)/g, ' ');
+    if (next === out) break;
+    out = next;
+  }
+
+  return out
+    // Removing "(yeah)" from "you (yeah), tonight" would otherwise leave a space before the comma.
+    .replace(/\s+([,.!?;:])/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 function parseFraction(raw: string | undefined): number {
   if (!raw) return 0;
@@ -52,8 +85,9 @@ export function parseLrc(lrc: string): LyricLine[] {
 
     if (stamps.length === 0) continue; // metadata tag or junk
 
-    const text = rawLine.slice(lastTagEnd).trim();
-    if (text.length === 0) continue; // an instrumental gap marker, not something to type
+    const text = stripParentheticals(rawLine.slice(lastTagEnd));
+    // Empty either because the line was a gap marker, or because it was entirely backing vocal.
+    if (text.length === 0) continue;
 
     for (const startMs of stamps) entries.push({ startMs, text });
   }

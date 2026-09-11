@@ -4,6 +4,7 @@ import {
   Box,
   Button,
   Flex,
+  Grid,
   Heading,
   Image,
   Spinner,
@@ -323,52 +324,69 @@ export function SetlistsPage() {
         </Box>
       )}
 
-      {TIERS.map(({ tier, label, blurb }) => {
-        const songs = entries.filter((entry) => entry.tier === tier);
+      {/*
+        Tiers side by side rather than stacked. Three across is the point — the graded ladder reads
+        as a progression when Easy, Medium and Hard are in one line, and as a very long page when
+        they are not. Insane and Freestyle wrap to the second row.
+      */}
+      <Grid
+        // minmax(0, …) rather than 1fr: a plain 1fr keeps an implicit min-width of auto, so a long
+        // title widens its own column and the tiers stop lining up.
+        templateColumns={{
+          base: 'minmax(0, 1fr)',
+          md: 'repeat(2, minmax(0, 1fr))',
+          xl: 'repeat(3, minmax(0, 1fr))',
+        }}
+        gap={6}
+        alignItems="start"
+      >
+        {TIERS.map(({ tier, label, blurb }) => {
+          const songs = entries.filter((entry) => entry.tier === tier);
 
-        return (
-          <Box key={tier}>
-            <Flex align="baseline" gap={3} mb={1}>
-              <Heading size="md">{label}</Heading>
-              <Badge colorPalette={BAND_PALETTE[tier]} variant="subtle">
-                {songs.length}
-              </Badge>
-            </Flex>
-            <Text fontSize="sm" color="var(--tt-muted)" mb={3}>
-              {blurb}
-            </Text>
+          return (
+            <Box key={tier}>
+              <Flex align="baseline" gap={3} mb={1}>
+                <Heading size="md">{label}</Heading>
+                <Badge colorPalette={BAND_PALETTE[tier]} variant="subtle">
+                  {songs.length}
+                </Badge>
+              </Flex>
+              <Text fontSize="sm" color="var(--tt-muted)" mb={3}>
+                {blurb}
+              </Text>
 
-            {songs.length === 0 ? (
-              <Box
-                borderWidth="1px"
-                borderStyle="dashed"
-                borderColor="var(--tt-border)"
-                borderRadius="md"
-                p={5}
-              >
-                <Text fontSize="sm" color="var(--tt-muted)">
-                  {canCurate
-                    ? 'Nothing here yet. Add a song with the button above.'
-                    : 'Nothing here yet.'}
-                </Text>
-              </Box>
-            ) : (
-              <Stack gap={2}>
-                {songs.map((entry) => (
-                  <EntryCard
-                    key={entry.id}
-                    entry={entry}
-                    canCurate={canCurate}
-                    busy={loadingId === entry.id}
-                    onPlay={() => void play(entry)}
-                    onChanged={load}
-                  />
-                ))}
-              </Stack>
-            )}
-          </Box>
-        );
-      })}
+              {songs.length === 0 ? (
+                <Box
+                  borderWidth="1px"
+                  borderStyle="dashed"
+                  borderColor="var(--tt-border)"
+                  borderRadius="md"
+                  p={5}
+                >
+                  <Text fontSize="sm" color="var(--tt-muted)">
+                    {canCurate
+                      ? 'Nothing here yet. Add a song with the button above.'
+                      : 'Nothing here yet.'}
+                  </Text>
+                </Box>
+              ) : (
+                <Stack gap={2}>
+                    {songs.map((entry) => (
+                      <EntryCard
+                        key={entry.id}
+                        entry={entry}
+                        canCurate={canCurate}
+                        busy={loadingId === entry.id}
+                        onPlay={() => void play(entry)}
+                        onChanged={load}
+                      />
+                    ))}
+                </Stack>
+              )}
+            </Box>
+          );
+        })}
+      </Grid>
     </Stack>
   );
 }
@@ -443,33 +461,35 @@ function EntryCard({
           <Image
             src={thumbnailUrl(entry.videoId)}
             alt=""
-            w="120px"
-            h="68px"
+            w="96px"
+            h="54px"
             objectFit="cover"
             flexShrink={0}
             bg="var(--tt-border)"
           />
 
-          <Box py={2} minW={0} flex="1">
+          {/*
+            Stacked rather than spread across the row. In a column this narrow there is no room for
+            a right-hand stats block beside the title without truncating both.
+          */}
+          <Box py={2} pe={2} minW={0} flex="1">
             <Text fontWeight="semibold" truncate>
               {entry.title}
             </Text>
             <Text fontSize="sm" color="var(--tt-muted)" truncate>
               {entry.artist}
             </Text>
+            <Text fontSize="xs" color="var(--tt-muted)" truncate>
+              ≈{Math.round(entry.requiredWpm)} wpm · {formatDuration(entry.durationSec)} ·{' '}
+              {entry.lineCount} lines
+            </Text>
           </Box>
 
-          <Flex align="center" gap={4} pe={4} flexShrink={0}>
-            <Box textAlign="right">
-              <Text fontSize="sm" fontWeight="semibold">
-                ≈{Math.round(entry.requiredWpm)} wpm
-              </Text>
-              <Text fontSize="xs" color="var(--tt-muted)">
-                {formatDuration(entry.durationSec)} · {entry.lineCount} lines
-              </Text>
-            </Box>
-            {busy && <Spinner size="sm" />}
-          </Flex>
+          {busy && (
+            <Flex align="center" pe={3} flexShrink={0}>
+              <Spinner size="sm" />
+            </Flex>
+          )}
         </Flex>
       </Box>
 

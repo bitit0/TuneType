@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseLrc, findActiveLineIndex, FINAL_LINE_TAIL_MS } from './parseLrc';
+import { parseLrc, findActiveLineIndex, stripParentheticals, FINAL_LINE_TAIL_MS } from './parseLrc';
 
 // All fixtures below are invented placeholder text. Real lyrics never enter this repo.
 
@@ -100,5 +100,47 @@ describe('findActiveLineIndex', () => {
 
   it('returns -1 for an empty lyric set', () => {
     expect(findActiveLineIndex([], 1_000)).toBe(-1);
+  });
+});
+
+describe('stripParentheticals', () => {
+  it('removes a backing vocal from the middle of a line', () => {
+    expect(stripParentheticals('alpha bravo charlie')).toBe('alpha bravo charlie');
+    expect(stripParentheticals('alpha (echo) bravo')).toBe('alpha bravo');
+  });
+
+  it('does not leave a space stranded before punctuation', () => {
+    expect(stripParentheticals('alpha (echo), bravo')).toBe('alpha, bravo');
+  });
+
+  it('collapses nested brackets rather than leaving ragged halves', () => {
+    expect(stripParentheticals('alpha (bravo (charlie) delta) echo')).toBe('alpha echo');
+  });
+
+  it('leaves an unclosed bracket alone', () => {
+    // Deleting to end of line on one stray character would swallow real lyrics.
+    expect(stripParentheticals('alpha (bravo charlie')).toBe('alpha (bravo charlie');
+  });
+
+  it('empties a line that was nothing but an ad-lib', () => {
+    expect(stripParentheticals('(oh oh oh)')).toBe('');
+  });
+});
+
+describe('parseLrc, with backing vocals', () => {
+  const LF = '\n';
+
+  it('strips them from the lines it keeps', () => {
+    const lines = parseLrc(['[00:01.00]alpha (echo)', '[00:05.00]bravo charlie'].join(LF));
+
+    expect(lines.map((l) => l.text)).toEqual(['alpha', 'bravo charlie']);
+  });
+
+  it('drops a line that was entirely backing vocal, and keeps the timing of the rest', () => {
+    const lines = parseLrc(['[00:01.00]alpha', '[00:03.00](ooh)', '[00:05.00]bravo'].join(LF));
+
+    expect(lines.map((l) => l.text)).toEqual(['alpha', 'bravo']);
+    // The dropped line does not bound its predecessor: alpha now runs until bravo starts.
+    expect(lines[0]!.endMs).toBe(5_000);
   });
 });

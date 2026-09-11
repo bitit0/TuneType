@@ -35,6 +35,7 @@ function NavTab({ to, children }: { to: string; children: React.ReactNode }) {
 }
 
 export default function App() {
+  const { pathname } = useLocation();
   const user = useAuthStore((s) => s.user);
   const clearAccount = useAccountStore((s) => s.clear);
 
@@ -89,7 +90,12 @@ export default function App() {
       </Box>
 
       <Box as="main" flex="1">
-        <Container maxW="5xl" py={8}>
+        {/*
+          Setlists get more room than the rest. Every other screen is a single column of prose or
+          one table, and reading those is easier narrow; setlists are five parallel lists that want
+          to sit side by side. 5xl fits two tiers across, 7xl fits three.
+        */}
+        <Container maxW={pathname.startsWith('/setlists') ? '7xl' : '5xl'} py={8}>
           {/*
             Inside the layout rather than around the whole app, so a route that throws leaves the
             header and its navigation working. Every risky thing — the player, the clock, the
