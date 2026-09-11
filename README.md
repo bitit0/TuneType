@@ -355,9 +355,12 @@ it once under **Settings → Pages → Source → GitHub Actions**; nothing else
 **What that gets you is the client, and only the client.** Pages serves static files, so there is no
 Express process — which means no YouTube search, no accounts, no setlists and no shared offsets.
 What remains is the flow the project has always supported with an empty `.env`: search LRCLIB from
-the browser, paste a video link, play, and see your results. Every server-backed screen says so
-plainly rather than failing; the front page hands over to the song-first search on its own when
-nothing answers at `/api`.
+the browser, paste a video link, play, and see your results.
+
+**The front page is the same front page.** When nothing answers at `/api` it searches LRCLIB
+instead of YouTube and says so — the wordmark, the one search field everything is arranged around,
+and the rest of it are not features of having an API key. Only what the field searches changes.
+Every other server-backed screen explains itself rather than failing.
 
 Two details make it work under `bitit0.github.io/TuneType/` rather than at a domain root. `BASE_PATH`
 is set by the workflow and read by Vite, and the router reads the same value back through

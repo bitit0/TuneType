@@ -12,13 +12,13 @@ import {
   Stack,
   Text,
 } from '@chakra-ui/react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
-import type { VideoCandidate } from '@shared/types';
+import { Link, useNavigate } from 'react-router-dom';
+import type { PlayableTrack, VideoCandidate } from '@shared/types';
 import { fetchYouTubeStatus, isQuotaExceeded, searchVideosByQuery } from '@/lib/api/youtube';
 import { isUnavailable } from '@/lib/api/client';
 import { thumbnailUrl } from '@/lib/api/setlists';
 import { resolveTrackForVideo } from '@/lib/lrclib/match';
-import { LrclibError } from '@/lib/lrclib/client';
+import { LrclibError, searchPlayableTracks } from '@/lib/lrclib/client';
 import { useSessionStore } from '@/store/sessionStore';
 
 /**
@@ -42,6 +42,21 @@ const EQ_BARS = [0, 0.42, 0.15, 0.68, 0.3, 0.9, 0.05, 0.55, 0.24, 0.78, 0.38, 0.
 
 /** Four real searches, so the empty state has somewhere to go. */
 const SUGGESTIONS = ['Fleetwood Mac Dreams', 'a-ha Take On Me', 'Radiohead Creep', 'ABBA Waterloo'];
+
+const SONG_FIRST_STEPS = [
+  {
+    title: 'Search the song',
+    body: 'Lyrics come from LRCLIB, straight to your browser. Only tracks with synced words appear.',
+  },
+  {
+    title: 'Choose a video',
+    body: 'Paste a link to the recording you want. "Artist - Topic" uploads sync best.',
+  },
+  {
+    title: 'Type in time',
+    body: 'Lines scroll with the music. Accuracy is the base; landing a line inside its window pays the rest.',
+  },
+];
 
 const STEPS = [
   {
@@ -87,18 +102,27 @@ export function VideoSearchPage() {
   const [error, setError] = useState<string | null>(null);
   const [videos, setVideos] = useState<VideoCandidate[]>([]);
 
+  /** Song-first results, used when this deployment has no video search behind it. */
+  const [tracks, setTracks] = useState<PlayableTrack[]>([]);
+
   /** Which video is having its lyrics looked up, so only that row shows a spinner. */
   const [resolving, setResolving] = useState<string | null>(null);
   const [resolveError, setResolveError] = useState<string | null>(null);
 
   /**
-   * Whether this server can search videos at all, or null until it has answered.
+   * Whether this deployment can search videos at all, or null until it has answered.
    *
    * Rendered optimistically while null. A configured server is the ordinary case and should not
-   * wait on a round trip to show its search box; an unconfigured one hands over to the
-   * lyrics-first flow, which is the whole front door when there is no API key.
+   * wait on a round trip to show its search box.
+   *
+   * False does not hand the visitor to another page. This *is* the front door, and the design of
+   * it — the wordmark, the one search field everything is arranged around — is not a feature of
+   * having a YouTube API key. What changes when there is no key is only what the field searches.
    */
   const [configured, setConfigured] = useState<boolean | null>(null);
+
+  /** Optimistic until proven otherwise: only an explicit `false` switches the page to song-first. */
+  const videoSearch = configured !== false;
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -111,6 +135,8 @@ export function VideoSearchPage() {
         // Handing over to the song-first flow beats offering a search box that cannot work.
         // Any other failure says nothing about the key, so assume the usual case and let a real
         // search produce a real error message.
+        // Nothing answering at that path means there is no server at all — a static build. The
+        // page then searches LRCLIB directly, which needs nothing but the browser.
         setConfigured(isUnavailable(error) ? false : null);
       });
     return () => controller.abort();
@@ -134,6 +160,13 @@ export function VideoSearchPage() {
     setResolveError(null);
 
     try {
+      if (!videoSearch) {
+        // Straight to LRCLIB from the browser, the same call the song-first page makes.
+        setTracks(await searchPlayableTracks(text, controller.signal));
+        setStatus('done');
+        return;
+      }
+
       const result = await searchVideosByQuery(text, controller.signal);
       setVideos(result.videos);
       setStatus('done');
@@ -141,7 +174,9 @@ export function VideoSearchPage() {
       if (err instanceof DOMException && err.name === 'AbortError') return;
 
       setStatus('error');
-      if (isUnavailable(err)) {
+      if (err instanceof LrclibError) {
+        setError(err.message);
+      } else if (isUnavailable(err)) {
         setError('Video search is not configured on this server.');
       } else if (isQuotaExceeded(err)) {
         setError((err as Error).message);
@@ -149,6 +184,17 @@ export function VideoSearchPage() {
         setError('Could not search YouTube just now.');
       }
     }
+  }
+
+  /**
+   * Picking a song rather than a video, which is the other way round.
+   *
+   * The track is known and the video is not, so this goes to the video screen to choose one —
+   * where, with no search available, that means pasting a link.
+   */
+  function chooseTrack(track: PlayableTrack) {
+    beginRun(track, '');
+    navigate('/video');
   }
 
   /**
@@ -188,11 +234,9 @@ export function VideoSearchPage() {
     }
   }
 
-  if (configured === false) return <Navigate to="/songs" replace />;
-
   // The hero stands down once there is something to look at. Results are the reason the page
   // exists, and a full-height introduction above them would push them off the fold.
-  const idle = videos.length === 0 && status !== 'done';
+  const idle = videos.length === 0 && tracks.length === 0 && status !== 'done';
 
   return (
     <>
@@ -225,8 +269,9 @@ export function VideoSearchPage() {
 
           {idle && (
             <Text color="var(--tt-muted)" maxW="lg" fontSize={{ base: 'md', md: 'lg' }}>
-              Find the video. The lyrics are matched to it automatically, by title and by length,
-              and scroll in time while you type.
+              {videoSearch
+                ? 'Find the video. The lyrics are matched to it automatically, by title and by length, and scroll in time while you type.'
+                : 'Find the song. Pick the video it should play against, and the lyrics scroll in time while you type.'}
             </Text>
           )}
         </Stack>
@@ -246,7 +291,7 @@ export function VideoSearchPage() {
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Artist and song"
+                  placeholder={videoSearch ? 'Artist and song' : 'Song title'}
                   size="lg"
                   variant="subtle"
                   bg="transparent"
@@ -301,7 +346,7 @@ export function VideoSearchPage() {
 
         {idle && (
           <Grid templateColumns={{ base: '1fr', md: 'repeat(3, 1fr)' }} gap={4} maxW="4xl" mx="auto">
-            {STEPS.map((step, i) => (
+            {(videoSearch ? STEPS : SONG_FIRST_STEPS).map((step, i) => (
               <Box
                 key={step.title}
                 borderWidth="1px"
@@ -344,15 +389,54 @@ export function VideoSearchPage() {
         </Box>
       )}
 
-      {status === 'done' && videos.length === 0 && (
-        <Box borderWidth="1px" borderColor="var(--tt-border)" borderRadius="md" p={4}>
-          <Text>YouTube returned nothing playable for that.</Text>
+      {status === 'done' && videos.length === 0 && tracks.length === 0 && (
+        <Box borderWidth="1px" borderColor="var(--tt-border)" p={4}>
+          <Text>
+            {videoSearch
+              ? 'YouTube returned nothing playable for that.'
+              : 'LRCLIB has no synced lyrics for that.'}
+          </Text>
           <Text fontSize="sm" color="var(--tt-muted)" mt={1}>
-            Results that cannot be embedded are filtered out at the source, so a video that exists
-            may still not appear here.
+            {videoSearch
+              ? 'Results that cannot be embedded are filtered out at the source, so a video that exists may still not appear here.'
+              : 'Plain-text and instrumental entries are filtered out, since neither can be played. Try the exact title, or add the artist.'}
           </Text>
         </Box>
       )}
+
+        {tracks.length > 0 && (
+          <Stack gap={2}>
+            {tracks.map((track) => (
+              <Flex
+                key={track.lrclibId}
+                as="button"
+                onClick={() => chooseTrack(track)}
+                align="center"
+                gap={4}
+                textAlign="left"
+                w="100%"
+                p={3}
+                borderWidth="1px"
+                borderColor="var(--tt-border)"
+                bg="var(--tt-surface)"
+                _hover={{ borderColor: 'var(--tt-accent)' }}
+              >
+                <Box minW={0} flex="1">
+                  <Text fontWeight="semibold" truncate>
+                    {track.title}
+                  </Text>
+                  <Text fontSize="sm" color="var(--tt-muted)" truncate>
+                    {track.artist}
+                    {track.album ? ` · ${track.album}` : ''}
+                  </Text>
+                </Box>
+                <Text fontSize="sm" color="var(--tt-muted)" flexShrink={0}>
+                  {formatDuration(track.durationSec)} · {track.lines.length} lines
+                </Text>
+              </Flex>
+            ))}
+          </Stack>
+        )}
 
       {videos.length > 0 && (
         <Stack gap={2}>
@@ -398,7 +482,7 @@ export function VideoSearchPage() {
         </Stack>
       )}
 
-        {!idle && (
+        {!idle && videoSearch && (
           <Text fontSize="sm" color="var(--tt-muted)">
             Uploads from "Artist - Topic" channels are the distributor's own master and need the
             least timing correction. Official music videos are the worst bet — spoken intros and
