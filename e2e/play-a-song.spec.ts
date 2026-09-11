@@ -189,3 +189,31 @@ test('the header paints above the home page backdrop', async ({ page }) => {
     expect(stacking!.header.zIndex).toBeGreaterThan(layer.zIndex);
   }
 });
+
+test('the footer sits at the bottom of a short page, not in the middle of it', async ({ page }) => {
+  /*
+   * On a tall screen the home page does not fill the viewport, and the footer used to stop wherever
+   * the content did — floating halfway up with dead space beneath it.
+   *
+   * The cause was a percentage min-height on the app shell. #root is a flex column with
+   * `min-height: 100dvh`, and a percentage min-height resolves against a parent's *height*, which
+   * #root never sets — so the shell took its content's height and `main` had nothing to grow into.
+   *
+   * A viewport taller than the content is the only place this is visible, hence the explicit size.
+   */
+  await page.setViewportSize({ width: 1280, height: 1600 });
+  await page.goto('/');
+
+  await expect(page.getByPlaceholder('Artist and song')).toBeVisible();
+
+  const footer = page.locator('footer');
+  await expect(footer).toBeVisible();
+
+  const box = await footer.boundingBox();
+  const viewport = page.viewportSize();
+  expect(box).not.toBeNull();
+  expect(viewport).not.toBeNull();
+
+  // Within a pixel of the bottom edge, rather than wherever the cards happened to end.
+  expect(Math.abs(viewport!.height - (box!.y + box!.height))).toBeLessThan(2);
+});

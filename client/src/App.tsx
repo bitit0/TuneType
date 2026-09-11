@@ -50,7 +50,11 @@ export default function App() {
   }, [user, clearAccount]);
 
   return (
-    <Flex direction="column" minH="100%">
+    // `flex="1"`, not a percentage height. #root is a flex column with `min-height: 100dvh`, and a
+    // percentage min-height resolves against a parent's *height* — which #root does not set — so
+    // this box only ever took its content's height. Below a screenful that left `main` nothing to
+    // grow into and the footer sat wherever the content stopped, halfway up the page.
+    <Flex direction="column" flex="1">
       {/*
         Three layers, and the header has to be the top one.
 
