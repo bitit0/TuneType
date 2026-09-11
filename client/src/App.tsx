@@ -46,7 +46,22 @@ export default function App() {
 
   return (
     <Flex direction="column" minH="100%">
-      <Box as="header" borderBottom="1px solid var(--tt-border)" bg="var(--tt-surface)">
+      {/*
+        Positioned, so the home page's fixed aurora cannot paint over it.
+
+        A fixed element with `z-index: 0` still sits in the positioned-elements layer, which paints
+        above in-flow static content however early that content appears in the document. The header
+        was static, so the aurora covered it completely — visible as a header that simply was not
+        there. Negative z-index on the aurora is not the fix: html carries a background, so body's
+        own background stops propagating to the canvas and paints over anything behind it.
+      */}
+      <Box
+        as="header"
+        position="relative"
+        zIndex={1}
+        borderBottom="1px solid var(--tt-border)"
+        bg="var(--tt-surface)"
+      >
         <Container maxW="5xl" py={3}>
           <Flex align="center" justify="space-between" gap={4}>
             <Flex align="center" gap={6} minW={0}>
