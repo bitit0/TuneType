@@ -237,7 +237,6 @@ export function VideoSearchPage() {
                 bg="var(--tt-surface)"
                 borderWidth="1px"
                 borderColor="var(--tt-border)"
-                borderRadius="14px"
                 align="center"
               >
                 <Input
@@ -256,7 +255,6 @@ export function VideoSearchPage() {
                   type="submit"
                   size="lg"
                   colorPalette="blue"
-                  borderRadius="10px"
                   px={7}
                   disabled={status === 'loading'}
                   flexShrink={0}
@@ -284,7 +282,6 @@ export function VideoSearchPage() {
                   fontSize="sm"
                   px={3}
                   py={1}
-                  borderRadius="full"
                   borderWidth="1px"
                   borderColor="var(--tt-border)"
                   bg="var(--tt-surface)"

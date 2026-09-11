@@ -85,7 +85,6 @@ body {
 /* Whitespace typed wrongly is invisible without a hint of background. */
 .tt-char--wrong.tt-char--space {
   background: rgba(248, 113, 113, 0.35);
-  border-radius: 2px;
 }
 
 .tt-caret {
@@ -216,7 +215,6 @@ body {
 .tt-eq i {
   width: 3px;
   height: 20%;
-  border-radius: 2px;
   background: linear-gradient(to top, var(--tt-accent), #a855f7);
   animation: tt-eq-bounce 1.2s ease-in-out infinite;
 }
@@ -242,7 +240,6 @@ body {
  */
 .tt-search-glow {
   position: relative;
-  border-radius: 14px;
 }
 
 .tt-search-glow::before {

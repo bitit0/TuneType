@@ -67,7 +67,6 @@ export function AccountMenu() {
         gap={2}
         px={2}
         py={1}
-        borderRadius="full"
         borderWidth="1px"
         borderColor={open ? 'var(--tt-accent)' : 'transparent'}
         _hover={{ borderColor: 'var(--tt-border)' }}

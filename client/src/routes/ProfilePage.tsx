@@ -423,7 +423,6 @@ export function ProfilePage() {
                     style={{
                       width: 26,
                       height: 26,
-                      borderRadius: '50%',
                       background: AVATAR_PALETTE[color].bg,
                       border: `2px solid ${selected ? 'var(--tt-text)' : 'transparent'}`,
                       outlineOffset: 2,
