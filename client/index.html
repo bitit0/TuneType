@@ -1,0 +1,21 @@
+<!doctype html>
+<!--
+  `class="dark"` is what puts Chakra into dark mode: its `_dark` condition compiles to `.dark &`,
+  and without the class every Chakra semantic token — surfaces, borders, focus rings, and the
+  `html { bg }` in its reset — resolves to the LIGHT palette, on top of a hand-written dark theme.
+  That mismatch is what produced a pale background behind the app.
+
+  The app has one fixed dark appearance, so this is set statically rather than through a
+  color-mode provider; there is no light theme to toggle to.
+-->
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TuneType</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

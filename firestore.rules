@@ -1,0 +1,23 @@
+rules_version = '2';
+
+// Account data is written and read exclusively by our Express server through the Firebase Admin
+// SDK, which bypasses these rules entirely. So the correct rule for every client is "no".
+//
+// This is not belt-and-braces paranoia. The Firebase web config shipped to the browser
+// (VITE_FIREBASE_*) is public by design, and any signed-in user could otherwise open a Firestore
+// connection straight from devtools. Routing writes through the server is what lets runs be
+// validated before they land and keeps lifetime stats consistent with the runs behind them; a
+// permissive rule here would quietly make that server-side validation optional.
+//
+// Deploy with:  firebase deploy --only firestore:rules
+//
+// If a future feature genuinely needs direct client reads — a public leaderboard, say — grant it
+// on that specific path and leave this default in place.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

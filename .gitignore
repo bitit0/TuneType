@@ -1,0 +1,23 @@
+node_modules/
+dist/
+build/
+*.log
+npm-debug.log*
+
+# Secrets — never commit
+.env
+.env.local
+.env.*.local
+*-service-account*.json
+serviceAccountKey.json
+
+# Lyrics content must never enter this repo. Test fixtures are synthetic only.
+*.lrc
+lyrics-cache/
+
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+.claude/

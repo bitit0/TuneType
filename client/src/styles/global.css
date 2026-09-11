@@ -1,0 +1,126 @@
+:root {
+  /*
+   * The page background is declared here, on `:root`, and that placement is load-bearing.
+   *
+   * Chakra's reset styles `html` as well — `html { color: fg; bg: bg }` — and injects it into a
+   * <style> tag at runtime, after this file. An `html` selector here would tie on specificity and
+   * lose on source order. `:root` is a class-level selector (0,1,0) and outranks a bare element
+   * selector (0,0,1) whatever the order, so this wins without needing !important.
+   */
+  background: var(--tt-bg);
+
+  --tt-bg: #0e0f13;
+  --tt-surface: #171922;
+  --tt-border: #2a2d3a;
+  --tt-text: #e8eaf0;
+  --tt-muted: #8b90a3;
+  --tt-accent: #6c8cff;
+  --tt-correct: #4ade80;
+  --tt-wrong: #f87171;
+  --tt-pending: #5a5f73;
+}
+
+/*
+ * `min-height`, not `height`.
+ *
+ * `height: 100%` pinned the body box to exactly one viewport. A page taller than that — the
+ * profile page is the first — left everything past the fold outside the body, and since Chakra
+ * gives `html` its own background, `body`'s color no longer propagates to cover the canvas. The
+ * result was a pale strip visible only once you scrolled to the very bottom. Letting body grow
+ * with its content means its background paints the whole scrollable area, whatever `html` says.
+ */
+html {
+  min-height: 100%;
+}
+
+body,
+#root {
+  min-height: 100dvh;
+}
+
+body {
+  margin: 0;
+  background: var(--tt-bg);
+  color: var(--tt-text);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * The lyric + typing display is hand-written CSS rather than a component library on purpose:
+ * every character is its own span and they restyle as fast as the player types, so this stays on
+ * plain class swaps and `transform` — no per-keystroke style recomputation in JS.
+ */
+.tt-line {
+  font-size: 1.6rem;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  font-variant-ligatures: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.tt-char {
+  transition: color 60ms linear;
+}
+
+.tt-char--pending {
+  color: var(--tt-pending);
+}
+
+.tt-char--correct {
+  color: var(--tt-correct);
+}
+
+.tt-char--wrong {
+  color: var(--tt-wrong);
+  text-decoration: underline wavy var(--tt-wrong);
+  text-underline-offset: 4px;
+}
+
+/* Whitespace typed wrongly is invisible without a hint of background. */
+.tt-char--wrong.tt-char--space {
+  background: rgba(248, 113, 113, 0.35);
+  border-radius: 2px;
+}
+
+.tt-caret {
+  display: inline-block;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--tt-accent);
+  animation: tt-blink 1s steps(2, start) infinite;
+  vertical-align: text-bottom;
+  height: 1.4em;
+}
+
+@keyframes tt-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+.tt-context-line {
+  font-size: 1.05rem;
+  color: var(--tt-muted);
+  line-height: 1.6;
+}
+
+.tt-debug {
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tt-char,
+  .tt-caret {
+    transition: none;
+    animation: none;
+  }
+}
