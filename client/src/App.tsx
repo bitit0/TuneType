@@ -7,6 +7,7 @@ import { VideoSearchPage } from '@/routes/VideoSearchPage';
 import { SearchPage } from '@/routes/SearchPage';
 import { SelectVideoPage } from '@/routes/SelectVideoPage';
 import { SetlistsPage } from '@/routes/SetlistsPage';
+import { SetlistTierPage } from '@/routes/SetlistTierPage';
 import { PlayPage } from '@/routes/PlayPage';
 import { ResultsPage } from '@/routes/ResultsPage';
 import { ProfilePage } from '@/routes/ProfilePage';
@@ -109,6 +110,8 @@ export default function App() {
               <Route path="/songs" element={<SearchPage />} />
               <Route path="/video" element={<SelectVideoPage />} />
               <Route path="/setlists" element={<SetlistsPage />} />
+              {/* One tier's full list. An unknown tier redirects back to the index. */}
+              <Route path="/setlists/:tier" element={<SetlistTierPage />} />
               <Route path="/play" element={<PlayPage />} />
               <Route path="/results" element={<ResultsPage />} />
               <Route path="/profile" element={<ProfilePage />} />
