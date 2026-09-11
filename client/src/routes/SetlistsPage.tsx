@@ -17,6 +17,8 @@ import { fetchTrackById, LrclibError } from '@/lib/lrclib/client';
 import { BAND_PALETTE } from '@/components/Difficulty/PaceBadge';
 import { CurateDialog } from '@/components/Setlists/CurateDialog';
 import { useSessionStore } from '@/store/sessionStore';
+import { useAccountStore } from '@/store/accountStore';
+import { keyWeights, practiceFit } from '@/lib/scoring/practice';
 
 /**
  * The curated setlists — the game's front door for anyone who does not already have a song in mind.
@@ -48,6 +50,19 @@ function formatDuration(seconds: number | null): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+/** One ranked recommendation. Held in memory for the length of the visit and never stored. */
+interface PracticePick {
+  entry: SetlistEntry;
+  load: number;
+  culprits: string[];
+}
+
+/** LRCLIB requests in flight at once while ranking. Polite to a free service. */
+const PICK_BATCH = 5;
+
+/** How many songs to recommend. A short list is a decision; a long one is another search. */
+const PICK_COUNT = 3;
+
 export function SetlistsPage() {
   const navigate = useNavigate();
   const beginRun = useSessionStore((s) => s.beginRun);
@@ -57,6 +72,12 @@ export function SetlistsPage() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading');
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  /** Lifetime key counts, the input to the practice picks below. Null when signed out. */
+  const keyTally = useAccountStore((s) => s.overview?.stats.keyTally ?? null);
+
+  const [picks, setPicks] = useState<PracticePick[] | null>(null);
+  const [picking, setPicking] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -112,6 +133,48 @@ export function SetlistsPage() {
     }
   }
 
+  /**
+   * Ranks the curated songs by how heavily they lean on the keys this player misses.
+   *
+   * Runs on demand rather than on load, because it costs one LRCLIB request per entry. Those
+   * requests are the point: the letter distribution a ranking needs is exactly the thing that may
+   * not be stored against a track, so the measurement happens here, in the browser, and the lyrics
+   * are dropped the moment a number falls out of them.
+   */
+  async function rankForWeakKeys() {
+    if (!keyTally) return;
+
+    setPicking(true);
+    setError(null);
+
+    try {
+      const weights = keyWeights(keyTally);
+      const scored: PracticePick[] = [];
+
+      // In small batches. A curated list is short by design, but firing every request at a free
+      // public service at once is rude whatever its length.
+      for (let i = 0; i < entries.length; i += PICK_BATCH) {
+        const batch = entries.slice(i, i + PICK_BATCH);
+        const tracks = await Promise.all(
+          batch.map((entry) => fetchTrackById(entry.lrclibId).catch(() => null)),
+        );
+
+        batch.forEach((entry, j) => {
+          const track = tracks[j];
+          if (!track) return;
+          scored.push({ entry, ...practiceFit(track.lines, weights) });
+        });
+      }
+
+      scored.sort((a, b) => b.load - a.load);
+      setPicks(scored.slice(0, PICK_COUNT));
+    } catch (err) {
+      setError(err instanceof LrclibError ? err.message : 'Could not read the songs to rank them.');
+    } finally {
+      setPicking(false);
+    }
+  }
+
   if (status === 'loading') {
     return (
       <Flex align="center" gap={3} color="var(--tt-muted)">
@@ -153,6 +216,95 @@ export function SetlistsPage() {
       {error && (
         <Box borderWidth="1px" borderColor="var(--tt-wrong)" borderRadius="md" p={4}>
           <Text color="var(--tt-wrong)">{error}</Text>
+        </Box>
+      )}
+
+      {/*
+        Practice picks. Offered only to someone signed in with a history, since there is nothing to
+        rank against otherwise.
+      */}
+      {keyTally && entries.length > 0 && (
+        <Box borderWidth="1px" borderColor="var(--tt-border)" borderRadius="lg" p={5}>
+          <Flex justify="space-between" align="flex-start" gap={4} wrap="wrap" mb={picks ? 4 : 0}>
+            <Box>
+              <Heading size="sm" mb={1}>
+                Practise your weak keys
+              </Heading>
+              <Text fontSize="sm" color="var(--tt-muted)" maxW="2xl">
+                Ranks these songs by how often they ask for the keys you actually miss. Reads the
+                lyrics in your browser to do it and keeps none of them.
+              </Text>
+            </Box>
+            <Button size="sm" onClick={() => void rankForWeakKeys()} disabled={picking}>
+              {picking ? 'Reading…' : picks ? 'Rank again' : 'Rank for me'}
+            </Button>
+          </Flex>
+
+          {picks && picks.length === 0 && (
+            <Text fontSize="sm" color="var(--tt-muted)">
+              None of these songs could be read from LRCLIB just now.
+            </Text>
+          )}
+
+          {picks && picks.length > 0 && (
+            <Stack gap={2}>
+              {picks.map(({ entry, load, culprits }) => (
+                <Flex
+                  key={entry.id}
+                  as="button"
+                  onClick={() => void play(entry)}
+                  align="center"
+                  gap={4}
+                  textAlign="left"
+                  w="100%"
+                  p={3}
+                  borderWidth="1px"
+                  borderColor="var(--tt-border)"
+                  borderRadius="md"
+                  bg="var(--tt-surface)"
+                  _hover={{ borderColor: 'var(--tt-accent)' }}
+                >
+                  <Box minW={0} flex="1">
+                    <Text fontWeight="semibold" truncate>
+                      {entry.title}
+                    </Text>
+                    <Text fontSize="sm" color="var(--tt-muted)" truncate>
+                      {entry.artist}
+                    </Text>
+                  </Box>
+                  <Flex gap={1} flexShrink={0}>
+                    {culprits.map((key) => (
+                      <Box
+                        key={key}
+                        px={2}
+                        py={1}
+                        borderWidth="1px"
+                        borderColor="var(--tt-border)"
+                        borderRadius="sm"
+                        fontSize="sm"
+                        fontWeight="bold"
+                      >
+                        {key}
+                      </Box>
+                    ))}
+                  </Flex>
+                  <Text
+                    minW="64px"
+                    textAlign="right"
+                    fontSize="sm"
+                    color="var(--tt-wrong)"
+                    flexShrink={0}
+                  >
+                    {(load * 100).toFixed(1)}%
+                  </Text>
+                </Flex>
+              ))}
+              <Text fontSize="xs" color="var(--tt-muted)">
+                The percentage is how often you would be expected to mistype a character in that
+                song, given your history. The keys beside it are the ones driving it.
+              </Text>
+            </Stack>
+          )}
         </Box>
       )}
 
