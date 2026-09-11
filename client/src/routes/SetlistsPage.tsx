@@ -102,7 +102,8 @@ export function SetlistsPage() {
         return;
       }
 
-      beginRun(track, entry.videoId);
+      // The entry id travels with the run, so the results screen knows it can be scored server-side.
+      beginRun(track, entry.videoId, entry.id);
       navigate('/play');
     } catch (err) {
       setError(err instanceof LrclibError ? err.message : 'Could not load that song.');

@@ -28,6 +28,15 @@ interface SessionState {
   videoId: string | null;
 
   /**
+   * The curated entry this run belongs to, or null for a searched track.
+   *
+   * Present only when play started from a setlist, because that is the only case the server can
+   * score: a curated entry carries a stored profile of line lengths and windows, and a searched one
+   * does not. It is what decides whether a finished run has a leaderboard to go to.
+   */
+  setlistEntryId: string | null;
+
+  /**
    * Timing correction in force, in the sign convention of `lib/timing/offset.ts`: positive means
    * the video runs late relative to its lyrics, as it does when there is a title card.
    */
@@ -61,7 +70,7 @@ interface SessionState {
   lastKeystrokeAtMs: number | null;
   finished: boolean;
 
-  beginRun: (track: PlayableTrack, videoId: string) => void;
+  beginRun: (track: PlayableTrack, videoId: string, setlistEntryId?: string | null) => void;
   setActiveLine: (index: number) => void;
   typeChar: (char: string, atMs: number) => void;
   backspace: () => void;
@@ -81,6 +90,7 @@ interface SessionState {
 const initial = {
   track: null,
   videoId: null,
+  setlistEntryId: null,
   offsetMs: 0,
   offsetSource: 'none' as OffsetSource,
   consensus: null,
@@ -99,7 +109,8 @@ const initial = {
 export const useSessionStore = create<SessionState>((set, get) => ({
   ...initial,
 
-  beginRun: (track, videoId) => set({ ...initial, track, videoId }),
+  beginRun: (track, videoId, setlistEntryId = null) =>
+    set({ ...initial, track, videoId, setlistEntryId }),
 
   setActiveLine: (index) => {
     if (get().activeLineIndex === index) return;

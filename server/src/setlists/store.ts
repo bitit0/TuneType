@@ -1,12 +1,20 @@
 import admin from 'firebase-admin';
-import type { SetlistEntry, SetlistSubmission, SetlistTier } from '@shared/types';
+import type {
+  AvatarColor,
+  LeaderboardRow,
+  LineSpec,
+  SetlistEntry,
+  SetlistSubmission,
+  SetlistTier,
+} from '@shared/types';
 import { getFirestore } from '../firestore.js';
 
 /**
  * Firestore access for curated setlists.
  *
  * Layout:
- *   setlists/{entryId}   one curated song, carrying its tier
+ *   setlists/{entryId}              one curated song, carrying its tier
+ *   setlists/{entryId}/scores/{uid} that player's best verified run on it
  *
  * Flat rather than nested under a tier document, because the page shows every tier at once and one
  * collection read serves the whole screen. Moving a song between tiers is then a field update
@@ -65,7 +73,91 @@ function readEntry(id: string, data: admin.firestore.DocumentData): SetlistEntry
     lineCount: data.lineCount ?? 0,
     addedAt: toMillis(data.addedAt, 0),
     addedBy: typeof data.addedBy === 'string' ? data.addedBy : null,
+    ...(Array.isArray(data.scoreProfile) ? { scoreProfile: data.scoreProfile as LineSpec[] } : {}),
   };
+}
+
+export async function getEntry(id: string): Promise<SetlistEntry | null> {
+  const snapshot = await collection().doc(id).get();
+  return snapshot.exists ? readEntry(snapshot.id, snapshot.data() ?? {}) : null;
+}
+
+export interface VerifiedScoreRecord {
+  totalScore: number;
+  accuracy: number;
+  wpm: number;
+  achievedAt: number;
+}
+
+/**
+ * Keeps a player's best run on one entry.
+ *
+ * A transaction rather than a read-then-write, because two tabs finishing the same song at once
+ * would otherwise race and the lower score could land last. Returns whether this run was an
+ * improvement, which is the only thing the results screen needs to say something useful.
+ */
+export async function recordVerifiedScore(
+  entryId: string,
+  uid: string,
+  record: VerifiedScoreRecord,
+): Promise<{ improved: boolean; best: VerifiedScoreRecord }> {
+  const ref = collection().doc(entryId).collection('scores').doc(uid);
+
+  return db().runTransaction(async (tx) => {
+    const snapshot = await tx.get(ref);
+    const previous = snapshot.exists ? (snapshot.data() as VerifiedScoreRecord) : null;
+
+    if (previous && previous.totalScore >= record.totalScore) {
+      return { improved: false, best: previous };
+    }
+
+    tx.set(ref, record);
+    return { improved: true, best: record };
+  });
+}
+
+/**
+ * The top runs on one entry, highest first.
+ *
+ * Profiles are joined at read time rather than copied onto each score. A denormalized name is one
+ * rename away from being wrong, and a leaderboard showing someone's old handle back to them reads
+ * as a bug in the leaderboard. `getAll` fetches them in a single round trip, so the cost of being
+ * correct here is one extra request per page rather than one per row.
+ */
+export async function listLeaderboard(entryId: string, limit: number): Promise<LeaderboardRow[]> {
+  const snapshot = await collection()
+    .doc(entryId)
+    .collection('scores')
+    .orderBy('totalScore', 'desc')
+    .limit(limit)
+    .get();
+
+  if (snapshot.empty) return [];
+
+  const firestore = db();
+  const profiles = await firestore.getAll(
+    ...snapshot.docs.map((doc) => firestore.collection('users').doc(doc.id)),
+  );
+
+  const byUid = new Map(profiles.map((p) => [p.id, p.data() ?? {}]));
+
+  return snapshot.docs.map((doc) => {
+    const score = doc.data() as VerifiedScoreRecord;
+    const profile = byUid.get(doc.id) ?? {};
+
+    return {
+      uid: doc.id,
+      // A player whose profile has gone missing still earned the score, so the row stays and says
+      // so rather than being dropped or rendered blank.
+      displayName: typeof profile.displayName === 'string' ? profile.displayName : 'Unknown player',
+      photo: typeof profile.photo === 'string' ? profile.photo : null,
+      avatarColor: (typeof profile.avatarColor === 'string' ? profile.avatarColor : 'slate') as AvatarColor,
+      score: score.totalScore,
+      accuracy: score.accuracy,
+      wpm: score.wpm,
+      achievedAt: toMillis(score.achievedAt, 0),
+    };
+  });
 }
 
 /**

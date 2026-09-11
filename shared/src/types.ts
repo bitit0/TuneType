@@ -198,6 +198,22 @@ export type SetlistTier = PaceBand | 'freestyle';
  * of curation and sent as numbers. The lyrics themselves are not here and never will be — the same
  * rule that governs saved runs. A setlist is a list of pointers, not a library.
  */
+/**
+ * One line reduced to the three numbers scoring needs: how long it is, and the window it belongs
+ * to. No words.
+ *
+ * This is what lets the server score a run it has no lyrics for. A sequence of character counts and
+ * millisecond offsets reconstructs nothing — it is the same standing as `requiredWpm`, which is
+ * already an aggregate over the same lyrics. What it buys is that a curated song's scoring stops
+ * depending on the browser's arithmetic being honest.
+ */
+export interface LineSpec {
+  /** Characters in the line. The ceiling on what a run may claim to have typed correctly. */
+  len: number;
+  startMs: number;
+  endMs: number;
+}
+
 export interface SetlistEntry {
   id: string;
   tier: SetlistTier;
@@ -214,10 +230,63 @@ export interface SetlistEntry {
   addedAt: number;
   /** uid of the curator who added it. Null on entries added before attribution existed. */
   addedBy: string | null;
+  /**
+   * Per-line lengths and windows, so the server can score runs on this entry itself.
+   *
+   * Optional because entries curated before verified scoring existed do not have one. An entry
+   * without it is still playable; it just has no leaderboard, since there is nothing to check a
+   * claim against.
+   */
+  scoreProfile?: LineSpec[];
 }
 
 /** What a curator sends to add an entry. The server fills in id, timestamp and attribution. */
 export type SetlistSubmission = Omit<SetlistEntry, 'id' | 'addedAt' | 'addedBy'>;
+
+/**
+ * What a player reports after a run on a curated entry.
+ *
+ * Note the absence: there is no score here. The client reports what it did per line and the server
+ * works out what that is worth, using the entry's stored profile and its own copy of the scoring
+ * rules.
+ *
+ * This is not anti-cheat and does not pretend to be. A determined client can still report line
+ * results it did not earn, and nothing reachable from a cross-origin iframe will ever prove
+ * otherwise. What changes is the floor: posting a large number is no longer enough, every claim is
+ * bounded by the entry's real line lengths and windows, and two players' scores are now computed by
+ * the same code rather than by whatever each of their browsers ran.
+ */
+export interface VerifiedLineClaim {
+  /** Index into the entry's `scoreProfile`. */
+  i: number;
+  /** Characters typed correctly. Rejected when it exceeds the line's length. */
+  correct: number;
+  /** Characters typed at all. Rejected when it exceeds the line's length. */
+  typed: number;
+  /** Offset-adjusted time the line was completed, or null if it never was. */
+  doneAtMs: number | null;
+  /** Time spent typing this line. The WPM denominator. */
+  typingMs: number;
+}
+
+export interface VerifiedRunSubmission {
+  entryId: string;
+  /** The timing correction in force, so an implausible one can be rejected. */
+  offsetMs: number;
+  lines: VerifiedLineClaim[];
+}
+
+/** One row of a setlist entry's leaderboard. Scores here were computed by the server. */
+export interface LeaderboardRow {
+  uid: string;
+  displayName: string;
+  photo: string | null;
+  avatarColor: AvatarColor;
+  score: number;
+  accuracy: number;
+  wpm: number;
+  achievedAt: number;
+}
 
 // --- Offsets --------------------------------------------------------------------------------
 //

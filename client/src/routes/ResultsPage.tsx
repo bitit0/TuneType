@@ -8,6 +8,8 @@ import { useAuthStore } from '@/store/authStore';
 import { isAuthConfigured } from '@/lib/firebase';
 import { analyzeDifficulty } from '@/lib/scoring/difficulty';
 import { keyErrorRates } from '@/lib/scoring/keys';
+import { postVerifiedRun, toVerifiedRunSubmission, type VerifiedRunResult } from '@/lib/api/setlists';
+import { Avatar } from '@/components/Auth/Avatar';
 import { POINTS_PER_CORRECT_CHAR } from '@/lib/scoring/constants';
 
 /**
@@ -100,6 +102,7 @@ export function ResultsPage() {
   const offsetMs = useSessionStore((s) => s.offsetMs);
   const summarize = useSessionStore((s) => s.summarize);
   const beginRun = useSessionStore((s) => s.beginRun);
+  const setlistEntryId = useSessionStore((s) => s.setlistEntryId);
 
   const user = useAuthStore((s) => s.user);
   const saveRun = useAccountStore((s) => s.saveRun);
@@ -112,6 +115,10 @@ export function ResultsPage() {
   const keyErrors = useMemo(() => keyErrorRates(keystrokes), [keystrokes]);
 
   const [worstFirst, setWorstFirst] = useState(false);
+
+  /** The server's verdict on this run, when it was played from a setlist. */
+  const [verified, setVerified] = useState<VerifiedRunResult | null>(null);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
 
   // Saving is a side effect of arriving here, and must happen exactly once. StrictMode mounts
   // effects twice in development, and "Play again" returns to this screen with a fresh run, so the
@@ -130,6 +137,31 @@ export function ResultsPage() {
     resetSaveState();
     void saveRun(track, videoId, offsetMs, summary, keystrokes);
   }, [user, track, videoId, offsetMs, summary, keystrokes, saveRun, resetSaveState]);
+
+  /*
+   * A curated run also goes to the leaderboard, which is a separate trip on purpose.
+   *
+   * The account save records what you did; this one asks the server what it was worth. They can
+   * fail independently, and a leaderboard that is down should not cost anyone their history.
+   */
+  const rankedKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!user || !setlistEntryId || summary.lines.length === 0) return;
+
+    const key = `${setlistEntryId}:${summary.totalScore}:${summary.typingMs}`;
+    if (rankedKey.current === key) return;
+    rankedKey.current = key;
+
+    setVerifyError(null);
+    postVerifiedRun(toVerifiedRunSubmission(setlistEntryId, offsetMs, summary))
+      .then(setVerified)
+      .catch((error: unknown) => {
+        setVerifyError(
+          error instanceof Error ? error.message : 'Could not post this run to the leaderboard.',
+        );
+      });
+  }, [user, setlistEntryId, offsetMs, summary]);
 
   if (!track) return <Navigate to="/" replace />;
 
@@ -177,6 +209,67 @@ export function ResultsPage() {
       </Grid>
 
       <SaveStatus />
+
+      {/*
+        The server's own score, shown next to the browser's rather than instead of it. They should
+        agree — a cross-check test holds the two implementations to the same numbers — and if they
+        ever do not, seeing both is what makes that visible instead of silent.
+      */}
+      {setlistEntryId && (verified || verifyError) && (
+        <Box borderWidth="1px" borderColor="var(--tt-border)" borderRadius="md" p={4}>
+          {verifyError ? (
+            <Text fontSize="sm" color="var(--tt-muted)">
+              {verifyError} Your score above still stands — it just is not on the board.
+            </Text>
+          ) : (
+            verified && (
+              <Stack gap={3}>
+                <Flex justify="space-between" align="baseline" gap={3} wrap="wrap">
+                  <Heading size="sm">Leaderboard</Heading>
+                  <Text fontSize="sm" color="var(--tt-muted)">
+                    {verified.improved
+                      ? `New personal best on this song — ${verified.score.totalScore.toLocaleString()} scored by the server.`
+                      : `Server scored ${verified.score.totalScore.toLocaleString()}. Your best here still stands.`}
+                  </Text>
+                </Flex>
+
+                <Stack gap={1}>
+                  {verified.rows.slice(0, 10).map((row, i) => (
+                    <Flex
+                      key={row.uid}
+                      align="center"
+                      gap={3}
+                      fontSize="sm"
+                      px={3}
+                      py={2}
+                      borderWidth="1px"
+                      borderColor={row.uid === user?.uid ? 'var(--tt-accent)' : 'var(--tt-border)'}
+                      borderRadius="sm"
+                    >
+                      <Text color="var(--tt-muted)" minW="24px">
+                        {i + 1}
+                      </Text>
+                      <Avatar name={row.displayName} color={row.avatarColor} src={row.photo} size={24} />
+                      <Text flex="1" minW={0} truncate>
+                        {row.displayName}
+                      </Text>
+                      <Text minW="56px" textAlign="right" color="var(--tt-muted)">
+                        {Math.round(row.accuracy * 100)}%
+                      </Text>
+                      <Text minW="56px" textAlign="right" color="var(--tt-muted)">
+                        {row.wpm.toFixed(0)} wpm
+                      </Text>
+                      <Text minW="72px" textAlign="right" fontWeight="semibold">
+                        {row.score.toLocaleString()}
+                      </Text>
+                    </Flex>
+                  ))}
+                </Stack>
+              </Stack>
+            )
+          )}
+        </Box>
+      )}
 
       <Box borderWidth="1px" borderColor="var(--tt-border)" borderRadius="md" p={4}>
         <Text fontSize="sm" color="var(--tt-muted)">
