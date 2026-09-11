@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LrcTimeMs, LyricLine, PlayableTrack } from '@shared/types';
-import { parseVideoTitle, pickTrackForVideo } from './match';
+import { artistFromChannel, parseVideoTitle, pickTrackForVideo } from './match';
 
 /**
  * Fixtures are synthetic — invented artists, invented songs. Nothing in this repo is lyrics
@@ -9,9 +9,32 @@ import { parseVideoTitle, pickTrackForVideo } from './match';
 
 const LINES: LyricLine[] = [{ startMs: 0 as LrcTimeMs, endMs: 1_000 as LrcTimeMs, text: 'aaa' }];
 
-function track(id: number, title: string, durationSec: number | null): PlayableTrack {
-  return { lrclibId: id, title, artist: 'Nineteen Hollows', album: null, durationSec, lines: LINES };
+function track(
+  id: number,
+  title: string,
+  durationSec: number | null,
+  artist = 'Nineteen Hollows',
+): PlayableTrack {
+  return { lrclibId: id, title, artist, album: null, durationSec, lines: LINES };
 }
+
+describe('artistFromChannel', () => {
+  it('reads the artist off an auto-generated Topic channel', () => {
+    expect(artistFromChannel('Nineteen Hollows - Topic')).toBe('Nineteen Hollows');
+  });
+
+  it('handles the dashes YouTube actually uses', () => {
+    expect(artistFromChannel('Nineteen Hollows – Topic')).toBe('Nineteen Hollows');
+  });
+
+  it('strips a VEVO suffix', () => {
+    expect(artistFromChannel('NineteenHollowsVEVO')).toBe('NineteenHollows');
+  });
+
+  it('leaves an ordinary channel name alone', () => {
+    expect(artistFromChannel('Nineteen Hollows')).toBe('Nineteen Hollows');
+  });
+});
 
 describe('parseVideoTitle', () => {
   it('splits artist from title and drops decoration', () => {
@@ -78,5 +101,57 @@ describe('pickTrackForVideo', () => {
   it('falls back to an unknown length when nothing measurable fits', () => {
     const picked = pickTrackForVideo([track(1, 'Paper Ladder', null), track(2, 'Paper Ladder', 400)], video);
     expect(picked?.lrclibId).toBe(1);
+  });
+});
+
+describe('pickTrackForVideo, without a usable title', () => {
+  /*
+   * The regression this file exists for.
+   *
+   * A Topic upload is titled with the song alone — its artist is the channel — so reading only the
+   * title left a one-word search. "Dreams" then matched an unrelated band's song whose LRCLIB
+   * record happened to carry the word in its track name, and the duration agreed to within a
+   * second, so it was picked confidently. Both halves of that are covered here.
+   */
+  it('refuses to identify a song from one common word and no artist', () => {
+    const tracks = [track(1, 'Victima', 257, "Carla's Dreams")];
+    expect(pickTrackForVideo(tracks, { artist: null, title: 'Dreams', durationSec: 258 })).toBeNull();
+  });
+
+  it('rejects another artist whose track name merely contains the word', () => {
+    // LRCLIB records routinely bury the artist in the track name, which is why this one scores a
+    // perfect title overlap against a single wanted word. The artist check is what stops it.
+    const tracks = [track(1, "Carla's Dreams - Victima | Official Video", 257, "Carla's Dreams")];
+
+    expect(
+      pickTrackForVideo(tracks, { artist: 'Fleetwood Mac', title: 'Dreams', durationSec: 258 }),
+    ).toBeNull();
+  });
+
+  it('accepts the right artist even when their name is buried in the track name', () => {
+    const tracks = [track(1, 'Fleetwood Mac - Dreams', 258, 'Fleetwood Mac')];
+
+    expect(
+      pickTrackForVideo(tracks, { artist: 'Fleetwood Mac', title: 'Dreams', durationSec: 258 })
+        ?.lrclibId,
+    ).toBe(1);
+  });
+
+  it('still matches when billing differs between the two sides', () => {
+    // Half the artist's words is enough: one side credits the band, the other the frontman too.
+    const tracks = [track(1, 'Refugee', 200, 'Tom Petty and the Heartbreakers')];
+
+    expect(
+      pickTrackForVideo(tracks, { artist: 'Tom Petty', title: 'Refugee', durationSec: 202 })
+        ?.lrclibId,
+    ).toBe(1);
+  });
+
+  it('allows a multi-word title with no artist, which is identifying enough', () => {
+    const tracks = [track(1, 'Paper Ladder', 196)];
+
+    expect(
+      pickTrackForVideo(tracks, { artist: null, title: 'Paper Ladder', durationSec: 200 })?.lrclibId,
+    ).toBe(1);
   });
 });

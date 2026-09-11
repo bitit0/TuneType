@@ -54,6 +54,26 @@ function overlap(a: string[], b: string[]): number {
 const MIN_TITLE_OVERLAP = 0.6;
 
 /**
+ * How much of the video's artist must appear in an entry before it can be that recording.
+ *
+ * Half, rather than all, because billing varies: one side writes "Tom Petty" where the other writes
+ * "Tom Petty and the Heartbreakers", and a featured guest appears on one and not the other.
+ */
+const MIN_ARTIST_OVERLAP = 0.5;
+
+/**
+ * Below this many words, a title alone cannot identify a song.
+ *
+ * "Dreams" is a real song by a dozen artists and a word inside a hundred more. With an artist to
+ * go on that is fine; without one it is not enough to guess from, and guessing produces a
+ * confident wrong answer rather than an obvious failure.
+ */
+const MIN_TITLE_WORDS_WITHOUT_ARTIST = 2;
+
+/** Suffixes YouTube appends to a channel that is really just an artist. */
+const CHANNEL_SUFFIX = /\s*[-–—]\s*topic$|vevo$/i;
+
+/**
  * How much longer than the track a video may run.
  *
  * A video is normally the long one — a title card, a spoken intro, an outro held past the last
@@ -75,6 +95,20 @@ export interface ParsedVideoTitle {
   /** Null when the upload gave no separator to split on. */
   artist: string | null;
   title: string;
+}
+
+/**
+ * The artist a channel name stands for, when it stands for one.
+ *
+ * Auto-generated "Artist - Topic" uploads are the case that matters, and they are the ones the
+ * ranking rates highest — the distributor's own master, no title card, the best thing to type
+ * along to. Their titles carry only the song name, because the artist is the channel. Reading only
+ * the title threw that away and searched for the bare song name, which is how "Dreams (2004
+ * Remaster)" on "Fleetwood Mac - Topic" became a search for "Dreams" and matched a Moldovan band.
+ */
+export function artistFromChannel(channelTitle: string): string | null {
+  const stripped = channelTitle.replace(CHANNEL_SUFFIX, '').trim();
+  return stripped.length > 0 ? stripped : null;
 }
 
 /**
@@ -115,9 +149,27 @@ export function pickTrackForVideo(
   video: { artist: string | null; title: string; durationSec: number },
 ): PlayableTrack | null {
   const wanted = tokens(video.title);
+  const wantedArtist = video.artist ? tokens(video.artist) : [];
+
+  // Nothing but a single common word to go on. Refusing here costs a manual search; guessing costs
+  // someone a song whose lyrics are not the ones being sung.
+  if (wantedArtist.length === 0 && wanted.length < MIN_TITLE_WORDS_WITHOUT_ARTIST) return null;
 
   const scored = tracks
-    .filter((track) => overlap(tokens(track.title), wanted) >= MIN_TITLE_OVERLAP)
+    .filter((track) => {
+      if (overlap(tokens(track.title), wanted) < MIN_TITLE_OVERLAP) return false;
+      if (wantedArtist.length === 0) return true;
+
+      /*
+       * Checked against the artist and title together, because LRCLIB entries routinely carry the
+       * artist inside the track name as well — "Carla's Dreams - Victima | Official Video" is one
+       * record's idea of a song title. Searching both fields costs nothing and catches the entries
+       * whose fields are not cleanly separated.
+       */
+      const haystack = new Set(tokens(`${track.artist} ${track.title}`));
+      const hits = wantedArtist.filter((token) => haystack.has(token)).length;
+      return hits / wantedArtist.length >= MIN_ARTIST_OVERLAP;
+    })
     .map((track) => ({
       track,
       // Positive means the video runs longer than the track, which is the normal direction.
@@ -145,12 +197,16 @@ export function pickTrackForVideo(
  * videos have no synced lyrics anywhere — and the caller offers the manual search instead.
  */
 export async function resolveTrackForVideo(
-  video: { title: string; durationSec: number },
+  video: { title: string; channelTitle?: string; durationSec: number },
   signal?: AbortSignal,
 ): Promise<PlayableTrack | null> {
   const parsed = parseVideoTitle(video.title);
-  const query = parsed.artist ? `${parsed.artist} ${parsed.title}` : parsed.title;
+
+  // The channel stands in when the title names no artist, which is the norm for Topic uploads.
+  const artist = parsed.artist ?? (video.channelTitle ? artistFromChannel(video.channelTitle) : null);
+
+  const query = artist ? `${artist} ${parsed.title}` : parsed.title;
 
   const tracks = await searchPlayableTracks(query, signal);
-  return pickTrackForVideo(tracks, { ...parsed, durationSec: video.durationSec });
+  return pickTrackForVideo(tracks, { artist, title: parsed.title, durationSec: video.durationSec });
 }
